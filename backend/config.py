@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     )
 
     # ── LLM ──────────────────────────────────────────────────────────────────
-    GROQ_API_KEY: str = "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"
-    GEMINI_API_KEY: str = "AIzaSyDj3DZ8NMB2kBUuoCMtW3GtZkDBQUhwJTc"
+    GROQ_API_KEY: str
+    GEMINI_API_KEY: str | None = None
 
     # Groq model names (free tier)
     SMART_MODEL: str = "llama-3.3-70b-versatile"   # entailment, reasoning

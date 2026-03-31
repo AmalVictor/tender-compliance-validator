@@ -104,13 +104,13 @@ poetry run pytest tests/test_retriever.py -v -s
 
 ## Sample data
 
-The `data/` directory contains:
-- `sample_rfp.pdf` — A government RFP with 25 mandatory requirements
-- `sample_vendor_a.pdf` — Compliant vendor (should score ~85%)
-- `sample_vendor_b.pdf` — **Has planted gaps** (missing insurance cert, vague SLA)
-- `sample_vendor_c.pdf` — Partially compliant vendor
-
-Use Vendor B for your demo — it is designed to show the system catching real failures.
+The `data/` directory contains our **Golden Demo** documents:
+- `rfp_cloud_hris.pdf` — A complex RFP with highly specific technical and financial clauses.
+- `proposal_insighttech_hris.pdf` — A rigged vendor proposal designed to test the AI's reasoning.
+  - *Gotcha 1:* Uses semantic paraphrasing ("follow-the-sun" instead of "24/7/365").
+  - *Gotcha 2:* Provides 2 years of financials when 3 are requested (Tests LLM deduction).
+  - *Gotcha 3:* Completely omits the Customer Success Manager (Tests the Negative Space Gate).
+  - *Gotcha 4:* Hides data residency compliance deep inside a markdown table.
 
 ---
 
@@ -118,13 +118,12 @@ Use Vendor B for your demo — it is designed to show the system catching real f
 
 | Decision | Choice | Reason |
 |---|---|---|
-| LLM | Groq Llama 3.3 70B | Free tier, fast, excellent JSON output |
-| Retrieval | Two-stage (bi-encoder + cross-encoder) | +35% accuracy on paraphrase matching |
-| Classification | NLI entailment (not similarity) | Handles semantic equivalence correctly |
-| Gap detection | Threshold-based (no LLM call) | Fast, cheap, architecturally sound |
-| Framework | Direct API (no LangChain) | Readable, debuggable, no hidden abstractions |
-| DB | SQLite async | Zero ops overhead for hackathon scope |
-| Vector store | ChromaDB local | No infrastructure, persists to disk |
+| **LLM Engine** | Groq Llama 3.3 70B | Blistering fast inference for NLI classification; native JSON output. |
+| **Retrieval Math** | Reciprocal Rank Fusion (RRF) | Fuses dense embeddings (recall) with cross-encoder logits (precision) to prevent semantic paraphrasing from being falsely rejected. |
+| **Concurrency** | Asyncio + ThreadPools | CPU-bound embedding tasks are isolated; LLM I/O tasks run concurrently via `asyncio.gather` with a Semaphore. |
+| **Reliability** | Pydantic Self-Healing | LLM outputs are strictly validated. If the LLM breaks the JSON schema, the system catches the exception and prompts the LLM to correct itself. |
+| **Data Extraction** | Layout-Aware PyMuPDF | Automatically strips noisy headers/footers and reconstructs complex table rows so critical compliance data isn't lost during chunking. |
+| **Gap Detection** | Negative Space Gating | If the RRF fused score falls below a mathematical threshold, it instantly triggers a `NONE` match without wasting an LLM call. |
 
 ---
 
@@ -145,11 +144,11 @@ tender-compliance-validator/
 │   ├── document_parser.py   # Hierarchical PDF parser
 │   ├── requirement_extractor.py  # 2-pass extraction
 │   ├── proposal_indexer.py  # ChromaDB embedding
-│   ├── retriever.py         # Bi-encoder ANN search   [Phase 2]
-│   ├── reranker.py          # Cross-encoder reranking [Phase 2]
-│   ├── entailment_classifier.py  # NLI classification [Phase 2]
-│   ├── risk_detector.py     # Hybrid risk engine      [Phase 2]
-│   └── scorer.py            # Compliance scoring      [Phase 2]
+│   ├── retriever.py         # Bi-encoder ANN search  
+│   ├── reranker.py          # Cross-encoder reranking
+│   ├── entailment_classifier.py  # NLI classification
+│   ├── risk_detector.py     # Hybrid risk engine     
+│   └── scorer.py            # Compliance scoring     
 ├── frontend/
 │   ├── app.py               # Streamlit entry point
 │   ├── api_client.py        # HTTP client
@@ -157,9 +156,9 @@ tender-compliance-validator/
 │       ├── workspace.py     # Project dashboard
 │       ├── upload.py        # Document upload
 │       ├── requirements.py  # Human-in-the-loop review
-│       ├── matrix.py        # Compliance matrix       [Phase 2]
-│       ├── risk_heatmap.py  # Risk visualisation      [Phase 2]
-│       └── deep_dive.py     # Document deep-dive      [Phase 2]
+│       ├── matrix.py        # Compliance matrix       
+│       ├── risk_heatmap.py  # Risk visualisation      
+│       └── deep_dive.py     # Document deep-dive      
 ├── utils/
 │   ├── llm_client.py        # Groq API wrapper + retry
 │   └── risk_patterns.py     # Regex risk pattern library
@@ -179,6 +178,5 @@ tender-compliance-validator/
 1. **Scanned PDFs** — OCR is not implemented. Text-based PDFs only.
 2. **Single RFP per project** — Multi-lot RFPs are not yet supported.
 3. **English only** — No multilingual requirement extraction.
-4. **Rate limits** — Groq free tier: 6,000 tokens/min for 70B model.
-   Pre-run the audit and cache results before live demo.
+4. **API Rate Limits (Handled):** The Groq free tier restricts tokens-per-minute. Because our asynchronous engine processes requirements so quickly, it can hit this limit. *Solution implemented:* We engineered an exponential backoff and retry loop with `asyncio.Semaphore(5)` that gracefully catches HTTP 429 errors, pauses, and resumes without dropping any data or crashing the app.
 
