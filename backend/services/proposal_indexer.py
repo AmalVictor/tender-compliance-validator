@@ -30,7 +30,7 @@ from chromadb.config import Settings as ChromaSettings
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from backend.config import settings
+from config import settings
 from services.document_parser import ChildChunk, ParsedDocument
 
 logger = logging.getLogger(__name__)

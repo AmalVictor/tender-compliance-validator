@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from backend.database import Criticality, MatchStatus, RiskSeverity
+from database import Criticality, MatchStatus, RiskSeverity
 
 logger = logging.getLogger(__name__)
 

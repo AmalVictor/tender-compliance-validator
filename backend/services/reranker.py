@@ -26,7 +26,7 @@ import os
 
 from sentence_transformers import CrossEncoder
 
-from backend.config import settings
+from config import settings
 
 logger = logging.getLogger(__name__)
 

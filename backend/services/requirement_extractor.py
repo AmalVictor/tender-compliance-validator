@@ -29,8 +29,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from backend.config import settings
-from backend.database import Criticality, RequirementCategory
+from config import settings
+from database import Criticality, RequirementCategory
 from services.document_parser import ChildChunk, ParsedDocument
 from utils.llm_client import call_fast_batch
 

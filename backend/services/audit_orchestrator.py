@@ -29,8 +29,8 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import settings
-from backend.database import (
+from config import settings
+from database import (
     Document,
     DocumentType,
     Match,

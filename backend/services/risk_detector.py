@@ -31,8 +31,8 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from backend.config import settings
-from backend.database import RiskSeverity, RiskType
+from config import settings
+from database import RiskSeverity, RiskType
 from pydantic import BaseModel, Field, ValidationError
 from utils.llm_client import acall_smart, call_fast
 from utils.risk_patterns import RiskPattern, scan_text
