@@ -12,7 +12,7 @@ import { RiskHeatmap } from '@/components/RiskHeatmap';
 import { RequirementsReview } from '@/components/RequirementsReview';
 import { DeepDive } from '@/components/DeepDive';
 import { Chatbot } from '@/components/Chatbot';
-import { extractRequirements, getAuditStatus, getExportUrl, ApiError } from '@/lib/api';
+import { extractRequirements, getAuditStatus, getExportUrl, ApiError } from '../../../lib/api';
 import type { AuditStatus } from '@/types';
 
 //Slower count-up for compliance matrix KPI numbers

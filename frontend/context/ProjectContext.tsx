@@ -17,7 +17,7 @@ import {
   getAuditStatus,
   getRequirements,
   ApiError,
-} from '@/lib/api';
+} from '../lib/api';
 
 interface ProjectContextValue {
   project: Project | null;

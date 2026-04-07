@@ -12,7 +12,7 @@ import {
   streamChatMessage,
   sendChatMessage,
   type RichCitation,
-} from '@/lib/chat-stream';
+} from '../lib/chat-stream';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

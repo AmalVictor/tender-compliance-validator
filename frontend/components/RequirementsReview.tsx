@@ -8,7 +8,7 @@ import { useProject } from '@/context/ProjectContext';
 import { useToast } from '@/context/ToastContext';
 import dynamic from 'next/dynamic';
 import { StatusBadge } from './StatusBadge';
-import { patchRequirement, bulkConfirmRequirements } from '@/lib/api';
+import { patchRequirement, bulkConfirmRequirements } from '../lib/api';
 
 // Lazy-load the PDF viewer — heavy dependency, no SSR
 const TracePdfViewer = dynamic(() => import('@/components/TracePdfViewer'), {
