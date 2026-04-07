@@ -25,8 +25,8 @@ from typing import Any
 from groq import AsyncGroq, Groq, RateLimitError
 from sqlalchemy import select
 
-from backend.config import settings
-from backend.database import AsyncSessionLocal, LLMCache
+from config import settings
+from database import AsyncSessionLocal, LLMCache
 
 logger = logging.getLogger(__name__)
 

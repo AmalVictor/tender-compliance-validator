@@ -30,8 +30,8 @@ import time
 from dataclasses import dataclass
 from typing import Literal
 
-from backend.config import settings
-from backend.database import MatchStatus
+from config import settings
+from database import MatchStatus
 from pydantic import BaseModel, Field, ValidationError
 from utils.llm_client import acall_smart, call_smart
 

@@ -3,7 +3,7 @@ import csv
 import os
 
 from sqlalchemy import select
-from backend.database import AsyncSessionLocal, Requirement, Document
+from database import AsyncSessionLocal, Requirement, Document
 
 from services.proposal_indexer import ProposalIndexer
 from services.reranker import Reranker

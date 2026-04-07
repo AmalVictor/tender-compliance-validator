@@ -1,6 +1,6 @@
 import asyncio
 from sqlalchemy.future import select
-from backend.database import AsyncSessionLocal, RiskFinding
+from database import AsyncSessionLocal, RiskFinding
 
 async def fetch_risk_report():
     print("⚠️ ENTERPRISE RISK REPORT\n")

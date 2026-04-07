@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest
 from unittest.mock import patch, MagicMock
 
-from backend.database import Criticality, MatchStatus, RiskSeverity
+from database import Criticality, MatchStatus, RiskSeverity
 from services.entailment_classifier import EntailmentClassifier, EntailmentResult
 from services.scorer import ComplianceScorer, VendorScore
 from utils.risk_patterns import scan_text

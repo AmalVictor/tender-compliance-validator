@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from backend.database import AsyncSessionLocal, Document, MatchStatus, Requirement
+from database import AsyncSessionLocal, Document, MatchStatus, Requirement
 from services.audit_orchestrator import AuditOrchestrator
 
 # Golden Demo targets

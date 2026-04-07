@@ -1,5 +1,5 @@
 import asyncio
-from backend.database import engine, Base
+from database import engine, Base
 
 async def init_db():
     async with engine.begin() as conn:

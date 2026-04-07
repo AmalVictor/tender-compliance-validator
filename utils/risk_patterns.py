@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from backend.database import RiskSeverity, RiskType
+from database import RiskSeverity, RiskType
 
 
 @dataclass
