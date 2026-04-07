@@ -3,10 +3,10 @@
 
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { TenderDocument, AuditStatus, AuditResults } from '@/types';
-import { getDocuments, uploadDocument, runAudit, ApiError, getExportUrl } from '@/lib/api';
-import { useProject } from '@/context/ProjectContext';
-import { useToast } from '@/context/ToastContext';
+import type { TenderDocument, AuditStatus, AuditResults } from '../types';
+import { getDocuments, uploadDocument, runAudit, ApiError, getExportUrl } from '../lib/api';
+import { useProject } from '../context/ProjectContext';
+import { useToast } from '../context/ToastContext';
 
 const PIPELINE_STEPS = [
   { label: 'RFP\nUploaded', icon: '📄' },

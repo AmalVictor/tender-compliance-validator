@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
 import { Outfit, IBM_Plex_Mono } from 'next/font/google';
-import { ToastProvider } from '@/context/ToastContext';
+import { ToastProvider } from '../context/ToastContext';
 import './globals.css';
 
 const outfit = Outfit({

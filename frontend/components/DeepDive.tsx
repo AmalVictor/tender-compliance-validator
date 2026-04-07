@@ -8,9 +8,9 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import type { AuditResults } from '@/types';
-import { recordDecision, getDecisionsByProject, getDocumentFileUrl } from '@/lib/api';
-import { useToast } from '@/context/ToastContext';
+import type { AuditResults } from '../types';
+import { recordDecision, getDecisionsByProject, getDocumentFileUrl } from '../lib/api';
+import { useToast } from '../context/ToastContext';
 import { StatusBadge } from './StatusBadge';
 import TracePdfViewer from './TracePdfViewer';
 

@@ -9,7 +9,7 @@ import React, {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { Project, AuditResults, AuditStatus, Requirement } from '@/types';
+import type { Project, AuditResults, AuditStatus, Requirement } from '../types';
 import {
   getProject,
   getRawAuditResults,
@@ -17,7 +17,7 @@ import {
   getAuditStatus,
   getRequirements,
   ApiError,
-} from '@/lib/api';
+} from '../lib/api';
 
 interface ProjectContextValue {
   project: Project | null;

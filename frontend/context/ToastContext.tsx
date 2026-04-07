@@ -13,7 +13,7 @@ import React, {
   useRef,
   type ReactNode,
 } from 'react';
-import type { ToastMessage } from '@/types';
+import type { ToastMessage } from '../types';
 
 interface ToastContextValue {
   showToast: (message: string, type?: ToastMessage['type']) => void;

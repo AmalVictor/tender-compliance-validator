@@ -2,18 +2,18 @@
 // src/app/dashboard/[projectId]/DashboardClient.tsx
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ProjectProvider, useProject } from '@/context/ProjectContext';
-import { useToast } from '@/context/ToastContext';
-import { Sidebar, type TabId } from '@/components/Sidebar';
-import { TopNav } from '@/components/TopNav';
-import { Workspace } from '@/components/Workspace';
-import { ComplianceMatrix } from '@/components/ComplianceMatrix';
-import { RiskHeatmap } from '@/components/RiskHeatmap';
-import { RequirementsReview } from '@/components/RequirementsReview';
-import { DeepDive } from '@/components/DeepDive';
-import { Chatbot } from '@/components/Chatbot';
-import { extractRequirements, getAuditStatus, getExportUrl, ApiError } from '@/lib/api';
-import type { AuditStatus } from '@/types';
+import { ProjectProvider, useProject } from '../../../context/ProjectContext';
+import { useToast } from '../../../context/ToastContext';
+import { Sidebar, type TabId } from '../../../components/Sidebar';
+import { TopNav } from '../../../components/TopNav';
+import { Workspace } from '../../../components/Workspace';
+import { ComplianceMatrix } from '../../../components/ComplianceMatrix';
+import { RiskHeatmap } from '../../../components/RiskHeatmap';
+import { RequirementsReview } from '../../../components/RequirementsReview';
+import { DeepDive } from '../../../components/DeepDive';
+import { Chatbot } from '../../../components/Chatbot';
+import { extractRequirements, getAuditStatus, getExportUrl, ApiError } from '../../../lib/api';
+import type { AuditStatus } from '../../../types';
 
 //Slower count-up for compliance matrix KPI numbers
 function CountUpSlow({ target, suffix = '' }: { target: number; suffix?: string }) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import type { RiskFinding, RiskHeatmapCell, RiskSeverity } from '@/types';
+import type { RiskFinding, RiskHeatmapCell, RiskSeverity } from '../types';
 
 interface RiskHeatmapProps {
     heatmap: RiskHeatmapCell[];
