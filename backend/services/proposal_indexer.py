@@ -25,10 +25,7 @@ import os
 import re
 from pathlib import Path
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer
 
 from config import settings
 from services.document_parser import ChildChunk, ParsedDocument
@@ -37,12 +34,13 @@ logger = logging.getLogger(__name__)
 
 # ── Model singleton (loaded once, reused) ─────────────────────────────────────
 
-_bi_encoder: SentenceTransformer | None = None
+_bi_encoder = None
 
 
-def get_bi_encoder() -> SentenceTransformer:
+def get_bi_encoder():
     global _bi_encoder
     if _bi_encoder is None:
+        from sentence_transformers import SentenceTransformer
         os.makedirs(settings.HF_HOME, exist_ok=True)
         logger.info("Loading bi-encoder model (first run downloads ~80MB)...")
         _bi_encoder = SentenceTransformer(
@@ -55,12 +53,14 @@ def get_bi_encoder() -> SentenceTransformer:
 
 # ── ChromaDB client singleton ─────────────────────────────────────────────────
 
-_chroma_client: chromadb.PersistentClient | None = None
+_chroma_client = None
 
 
-def get_chroma_client() -> chromadb.PersistentClient:
+def get_chroma_client():
     global _chroma_client
     if _chroma_client is None:
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
         os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
         _chroma_client = chromadb.PersistentClient(
             path=settings.CHROMA_PERSIST_DIR,

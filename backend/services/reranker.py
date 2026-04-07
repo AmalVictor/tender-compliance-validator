@@ -24,7 +24,7 @@ import logging
 import math
 import os
 
-from sentence_transformers import CrossEncoder
+
 
 from config import settings
 
@@ -32,12 +32,13 @@ logger = logging.getLogger(__name__)
 
 # ── Model singleton ───────────────────────────────────────────────────────────
 
-_cross_encoder: CrossEncoder | None = None
+_cross_encoder = None
 
 
-def get_cross_encoder() -> CrossEncoder:
+def get_cross_encoder():
     global _cross_encoder
     if _cross_encoder is None:
+        from sentence_transformers import CrossEncoder
         os.makedirs(settings.HF_HOME, exist_ok=True)
         logger.info("Loading cross-encoder model (first run downloads ~80MB)...")
         _cross_encoder = CrossEncoder(
