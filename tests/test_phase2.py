@@ -27,7 +27,7 @@ class TestEntailmentClassifier:
 
     def test_negative_space_fires_below_threshold(self):
         """
-        If max_reranker_score < NONE_THRESHOLD, classifier returns NONE
+        If top_fused_score < PROBABILITY_NONE_THRESHOLD, classifier returns NONE
         without any LLM call. This is the negative space detection.
         """
         classifier = EntailmentClassifier()
@@ -38,7 +38,7 @@ class TestEntailmentClassifier:
             category="Technical",
             criticality="Mandatory",
             top_passages=[{"text": "We provide services.", "score": 0.1, "reranker_score": 0.1}],
-            max_reranker_score=0.10,  # well below threshold of 0.35
+            top_fused_score=0.10,  # well below probability threshold of 0.40
         )
         assert result.status == MatchStatus.NONE
         assert result.was_negative_space is True
@@ -46,7 +46,7 @@ class TestEntailmentClassifier:
 
     def test_negative_space_does_not_fire_above_threshold(self):
         """
-        If max_reranker_score >= NONE_THRESHOLD, classifier should attempt LLM call.
+        If top_fused_score >= PROBABILITY_NONE_THRESHOLD, classifier should attempt LLM call.
         We mock the LLM to test the parsing logic.
         """
         classifier = EntailmentClassifier()
@@ -75,7 +75,7 @@ class TestEntailmentClassifier:
                         "page_number": 8,
                     }
                 ],
-                max_reranker_score=0.85,
+                top_fused_score=0.85,
             )
 
         assert result.status == MatchStatus.FULL
@@ -104,7 +104,7 @@ class TestEntailmentClassifier:
                 category="Technical",
                 criticality="Mandatory",
                 top_passages=[{"text": "We endeavour to provide support.", "score": 0.55, "reranker_score": 0.55}],
-                max_reranker_score=0.55,
+                top_fused_score=0.55,
             )
 
         assert result.status == MatchStatus.PARTIAL
@@ -133,7 +133,7 @@ class TestEntailmentClassifier:
                 category="Technical",
                 criticality="Mandatory",
                 top_passages=[{"text": "We follow security best practices.", "score": 0.45, "reranker_score": 0.45}],
-                max_reranker_score=0.45,
+                top_fused_score=0.45,
             )
 
         # Should be downgraded to AMBIGUOUS since no evidence
@@ -152,7 +152,7 @@ class TestEntailmentClassifier:
                 category="Technical",
                 criticality="Mandatory",
                 top_passages=[{"text": "Our SLA is defined.", "score": 0.6, "reranker_score": 0.6}],
-                max_reranker_score=0.6,
+                top_fused_score=0.6,
             )
 
         assert result.status == MatchStatus.AMBIGUOUS

@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,7 +62,8 @@ async def upload_document(
     """
     Upload a PDF document (RFP or vendor proposal).
     Automatically parses the document after upload.
-    For RFPs, also runs requirement extraction (stored as unconfirmed).
+    For RFPs, requirements are extracted only when the user manually triggers
+    the "extract requirements" endpoint (human-in-the-loop gate).
     For proposals, runs admin eligibility check.
     """
     # ── Validate project ──────────────────────────────────────────────────
@@ -111,28 +113,15 @@ async def upload_document(
             await db.refresh(doc)
             return _doc_to_response(doc)
 
-        # ── RFP: extract requirements ─────────────────────────────────────
-        if document_type == DocumentType.RFP:
-            requirements = extract_requirements(parsed)
-            for req in requirements:
-                db_req = Requirement(
-                    project_id=project_id,
-                    rfp_clause_ref=req.rfp_clause_ref,
-                    raw_text=req.raw_text,
-                    normalised_intent=req.normalised_intent,
-                    category=req.category,
-                    criticality=req.criticality,
-                    section_title=req.section_title,
-                    page_number=req.page_number,
-                    is_confirmed=False,  # requires human confirmation
-                )
-                db.add(db_req)
-            logger.info("Extracted %d requirements from RFP '%s'", len(requirements), file.filename)
-
         # ── Proposal: index + admin check ─────────────────────────────────
         elif document_type == DocumentType.PROPOSAL:
             indexer = ProposalIndexer()
-            chunk_count = indexer.index(parsed, project_id=project_id, document_id=doc.id)
+            chunk_count = indexer.index(
+                parsed, 
+                project_id=project_id, 
+                document_id=doc.id, 
+                vendor_name=doc.vendor_name or doc.filename
+            )
             doc.is_indexed = True
             logger.info("Indexed %d chunks for proposal '%s'", chunk_count, file.filename)
 
@@ -256,6 +245,91 @@ async def get_admin_checks(
     )
     checks = result.scalars().all()
     return [AdminCheckResponse.model_validate(c) for c in checks]
+
+
+# ── Manual requirements extraction (human-in-the-loop gate) ────────────────
+
+@router.post("/{project_id}/requirements/extract", response_model=MessageResponse)
+async def extract_requirements_for_project(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Extract requirements from the latest uploaded RFP (stored as unconfirmed).
+
+    """
+    # Validate project
+    proj_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found.")
+
+    # Latest parsed RFP document
+    rfp_result = await db.execute(
+        select(Document)
+        .where(Document.project_id == project_id, Document.document_type == DocumentType.RFP)
+        .order_by(Document.uploaded_at.desc())
+        .limit(1)
+    )
+    rfp_doc = rfp_result.scalar_one_or_none()
+    if not rfp_doc:
+        raise HTTPException(status_code=404, detail="No RFP document found for this project.")
+
+    # Parse + extract
+    try:
+        parsed = parse_document(rfp_doc.file_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse RFP: {e}")
+
+    if parsed.is_scanned:
+        raise HTTPException(status_code=400, detail="RFP appears to be scanned; text extraction failed.")
+
+    extracted = extract_requirements(parsed)
+
+    
+    existing_result = await db.execute(select(Requirement).where(Requirement.project_id == project_id))
+    for old_req in existing_result.scalars().all():
+        old_req.is_confirmed = False
+        old_req.is_deleted = True
+
+    # Reset audit completion because requirements changed.
+    project.audit_complete = False
+
+    for req in extracted:
+        db_req = Requirement(
+            project_id=project_id,
+            rfp_document_id=rfp_doc.id,
+            rfp_clause_ref=req.rfp_clause_ref,
+            raw_text=req.raw_text,
+            normalised_intent=req.normalised_intent,
+            category=req.category,
+            criticality=req.criticality,
+            section_title=req.section_title,
+            page_number=req.page_number,
+            confidence=req.confidence_score,
+            bbox=req.bbox,
+            is_confirmed=False,
+        )
+        db.add(db_req)
+
+    await db.flush()
+    return MessageResponse(message=f"Extracted {len(extracted)} requirements.", data=None)
+
+
+# ── Document file serving (used by Traceability PDF viewer) ───────────────
+
+@router.get("/file/{document_id}")
+async def get_document_file(document_id: int, db: AsyncSession = Depends(get_db)) -> FileResponse:
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    # Stream inline so browsers embed preview (instead of forced download).
+    return FileResponse(
+        doc.file_path,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

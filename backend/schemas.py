@@ -8,7 +8,7 @@ Kept separate from ORM models to allow independent evolution.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,12 +33,20 @@ class OrmBase(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
+    reference: str | None = None
+    due_date: str | None = None
+    contract_value: str | None = None
+    client_department: str | None = None
 
 
 class ProjectResponse(OrmBase):
     id: int
     name: str
     description: str | None
+    reference: str | None = None
+    due_date: str | None = None
+    contract_value: str | None = None
+    client_department: str | None = None
     created_at: datetime
     audit_complete: bool
     document_count: int = 0
@@ -83,6 +91,9 @@ class RequirementResponse(OrmBase):
     criticality: Criticality
     section_title: str | None
     page_number: int | None
+    confidence: float = 0.0
+    bbox: list[float] | None = None
+    rfp_document_id: int | None = None
     is_confirmed: bool
     is_deleted: bool
     created_at: datetime
@@ -171,3 +182,34 @@ class MessageResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     detail: str | None = None
+
+
+# ── TenderAI chat ─────────────────────────────────────────────────────────────
+
+class ChatCitation(BaseModel):
+    """A retrieved proposal chunk used to ground the assistant reply."""
+
+    text: str
+    section_title: str | None = None
+    page_number: int | None = None
+    citation_index: int | None = Field(
+        default=None,
+        description="1-based index matching [Citation N] in the reply.",
+    )
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    project_id: int
+    document_id: int
+    message: str
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    citations: list[ChatCitation] = Field(default_factory=list)

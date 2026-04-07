@@ -1,0 +1,82 @@
+/* components/Sidebar.module.css */
+
+.sb {
+    width: 58px;
+    background: var(--sb);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 0;
+    gap: 2px;
+    flex-shrink: 0;
+    z-index: 50;
+}
+
+.logo {
+    width: 34px;
+    height: 34px;
+    background: var(--ac);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 22px;
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -.5px;
+    cursor: pointer;
+    border: none;
+    flex-shrink: 0;
+}
+
+.ni {
+    width: 42px;
+    height: 42px;
+    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--sb-txt);
+    transition: all .15s;
+    gap: 3px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+}
+
+.ni:hover {
+    background: var(--sb-act);
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.on {
+    background: rgba(12, 123, 114, 0.28) !important;
+    color: #5DD0C8 !important;
+}
+
+.ni svg {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+}
+
+.ni span {
+    font-size: 7.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.nd {
+    width: 26px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.07);
+    margin: 5px 0;
+}
+
+.nb {
+    margin-top: auto;
+}

@@ -21,6 +21,7 @@ Design document quote:
 from __future__ import annotations
 
 import logging
+import math
 import os
 
 from sentence_transformers import CrossEncoder
@@ -98,37 +99,23 @@ class Reranker:
             enriched["reranker_score"] = float(score)
             scored.append(enriched)
 
-        # Reciprocal Rank Fusion (RRF): combines bi-encoder and cross-encoder ranks.
-        # rank starts at 1, with constant 60 (common robust default).
-        k = 60.0
-        def _chunk_key(c: dict) -> tuple:
-            return (
-                c.get("text", ""),
-                c.get("section_title", ""),
-                c.get("page_number", 0),
-                c.get("clause_ref", ""),
-            )
-
-        bi_rank_map = {_chunk_key(c): idx + 1 for idx, c in enumerate(candidates)}
-        cross_sorted = sorted(scored, key=lambda x: x["reranker_score"], reverse=True)
-        cross_rank_map = {_chunk_key(c): idx + 1 for idx, c in enumerate(cross_sorted)}
+        # Logistic regression fusion (calibrated to probability)
+        W_COSINE = 0.4632
+        W_LOGIT = 0.3671
+        BIAS = 2.4275
 
         for item in scored:
-            key = _chunk_key(item)
-            bi_rank = bi_rank_map.get(key, len(candidates) + 1)
-            cross_rank = cross_rank_map.get(key, len(candidates) + 1)
-            item["rrf_score"] = (1.0 / (k + bi_rank)) + (1.0 / (k + cross_rank))
+            cosine_score = float(item.get("score", 0.0))
+            logit_score = float(item.get("reranker_score", 0.0))
+            z = (W_COSINE * cosine_score) + (W_LOGIT * logit_score) + BIAS
+            item["fused_probability"] = 1.0 / (1.0 + math.exp(-z))
 
-        # Sort by fused score first, then cross-encoder as tie-breaker
-        scored.sort(
-            key=lambda x: (x.get("rrf_score", 0.0), x["reranker_score"]),
-            reverse=True,
-        )
+        scored.sort(key=lambda x: float(x.get("fused_probability", 0.0)), reverse=True)
 
         logger.debug(
-            "Reranked %d candidates → top RRF: %.4f, top CE: %.4f",
+            "Reranked %d candidates → top fused prob: %.4f, top CE: %.4f",
             len(scored),
-            scored[0]["rrf_score"] if scored else 0,
+            float(scored[0].get("fused_probability", 0.0)) if scored else 0,
             scored[0]["reranker_score"] if scored else 0,
         )
 
@@ -142,10 +129,10 @@ class Reranker:
         return max(scores)
 
     def top_fused_score(self, candidates: list[dict]) -> float:
-        """Return highest fused RRF score from reranked candidates."""
+        """Return highest fused probability from reranked candidates."""
         if not candidates:
             return 0.0
-        scores = [float(c.get("rrf_score", 0.0)) for c in candidates]
+        scores = [float(c.get("fused_probability", 0.0)) for c in candidates]
         return max(scores)
 
 

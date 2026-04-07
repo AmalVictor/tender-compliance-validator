@@ -48,6 +48,26 @@ from services.scorer import ComplianceScorer
 
 logger = logging.getLogger(__name__)
 
+# Global cap on concurrent Groq calls across the audit pipeline (entailment gather, etc.).
+# Used by utils.llm_client after SQLite semantic cache miss — cache stays outside this gate.
+LLM_SEMAPHORE = asyncio.Semaphore(3)
+
+
+import re as _re
+def _extract_page_from_section_ref(section_ref: str | None) -> int | None:
+    if not section_ref: return None
+    m = _re.search(r'p(?:age|\.?)[\s:]*(\d+)', section_ref, _re.IGNORECASE)
+    return int(m.group(1)) if m else None
+
+
+async def run_llm_with_traffic(coro):
+    """
+    Acquire a global LLM slot, wait 1.5s to reduce burst traffic, then await the Groq coroutine.
+    """
+    async with LLM_SEMAPHORE:
+        await asyncio.sleep(1.5)
+        return await coro
+
 
 class AuditOrchestrator:
     """
@@ -74,7 +94,7 @@ class AuditOrchestrator:
 
         try:
             candidates = await asyncio.to_thread(
-                self.indexer.retrieve_with_keyword_boost,
+                self.indexer.retrieve_hybrid,
                 query_text,
                 project_id,
                 proposal_id,
@@ -247,6 +267,8 @@ class AuditOrchestrator:
                     explanation=result.explanation,
                     retriever_score=best_s1_by_requirement.get(result.requirement_id, 0.0),
                     reranker_score=result.reranker_score,
+                    page_number=_extract_page_from_section_ref(result.section_ref),
+                    bbox=result.bbox,
                 )
                 self.db.add(match)
 
@@ -257,26 +279,39 @@ class AuditOrchestrator:
                 proposal_text, proposal_chunks = await asyncio.to_thread(
                     self._load_proposal_text, proposal.file_path, project_id, proposal.id
                 )
-                risk_results = await asyncio.to_thread(
-                    self.risk_detector.detect,
-                    proposal.id,
-                    proposal_text,
-                    proposal_chunks,
-                    req_dicts,
-                )
+                # Use full text unless too large; then use compacted top chunks.
+                if len(proposal_text) > 60000:
+                    sampled = proposal_chunks[:20]
+                    risk_scan_text = "\n".join(c.get("text", "") for c in sampled)
+                else:
+                    risk_scan_text = proposal_text
+
+                risk_results = await self.risk_detector.ascan_for_risks(risk_scan_text)
+
 
                 for finding in risk_results:
+                    
+                    found_page = None
+                    found_section = None
+                    phrase_lower = finding.matched_phrase.lower()
+                    
+                    for chunk in proposal_chunks:
+                        if phrase_lower in chunk.get("text", "").lower():
+                            found_page = chunk.get("page_number")
+                            found_section = chunk.get("section_title")
+                            break
+
                     db_finding = RiskFinding(
-                        vendor_document_id=finding.vendor_document_id,
-                        risk_type=finding.risk_type,
-                        severity=finding.severity,
+                        vendor_document_id=proposal.id,
+                        risk_type=self.risk_detector.map_risk_type(finding.risk_type),
+                        severity=self.risk_detector.map_severity(finding.severity),
                         matched_phrase=finding.matched_phrase,
-                        context_text=finding.context_text,
+                        context_text=risk_scan_text[:500],
                         impact_explanation=finding.impact_explanation,
-                        section_ref=finding.section_ref,
-                        page_number=finding.page_number,
-                        rfp_clause_ref=finding.rfp_clause_ref,
-                        confirmed_by_llm=finding.confirmed_by_llm,
+                        section_ref=found_section,
+                        page_number=found_page,
+                        rfp_clause_ref=None,
+                        confirmed_by_llm=True,
                     )
                     self.db.add(db_finding)
 

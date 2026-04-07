@@ -18,6 +18,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     func,
@@ -112,12 +113,30 @@ class RiskType(str, enum.Enum):
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
+class LLMCache(Base):
+    __tablename__ = "llm_cache"
+
+    prompt_hash: Mapped[str] = mapped_column(String(64), primary_key=True, index=True)
+    model_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    response_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<LLMCache prompt_hash={self.prompt_hash[:12]}... model={self.model_name}>"
+
+
 class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    due_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    contract_value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_department: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -191,6 +210,11 @@ class Requirement(Base):
     )
     section_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    # [x0, y0, x1, y1] PDF page coordinates from PyMuPDF (or null if unknown)
+    bbox: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
+    # Source RFP document used to create this requirement (for traceability)
+    rfp_document_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -226,6 +250,8 @@ class Match(Base):
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     retriever_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     reranker_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bbox: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)  # [x0, y0, x1, y1] PDF coords
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -269,6 +295,11 @@ class RiskFinding(Base):
 
     def __repr__(self) -> str:
         return f"<RiskFinding id={self.id} type={self.risk_type} severity={self.severity}>"
+
+
+# ── Human Decisions ───────────────────────────────────────────────────────────
+
+from backend.database_decisions import HumanDecision  # noqa: E402, F401
 
 
 class AdminCheck(Base):

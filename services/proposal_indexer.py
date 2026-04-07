@@ -23,11 +23,11 @@ import json
 import logging
 import os
 import re
-from math import fsum
 from pathlib import Path
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
 from backend.config import settings
@@ -96,6 +96,21 @@ TECHNICAL_TERM_PATTERNS = [
 ]
 
 
+def _bbox_from_metadata(meta: dict) -> list[float] | None:
+    """Parse bbox JSON string from Chroma metadata (lists are not supported natively)."""
+    raw = meta.get("bbox")
+    if raw is None or raw == "":
+        return None
+    try:
+        if isinstance(raw, str):
+            parsed = json.loads(raw)
+            if isinstance(parsed, list) and len(parsed) >= 4:
+                return [float(parsed[0]), float(parsed[1]), float(parsed[2]), float(parsed[3])]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return None
+
+
 def extract_technical_terms(text: str) -> list[str]:
     """Extract technical terms that should be exact-matched."""
     terms = []
@@ -128,6 +143,7 @@ class ProposalIndexer:
         parsed: ParsedDocument,
         project_id: int,
         document_id: int,
+        vendor_name: str,
         batch_size: int = 64,
     ) -> int:
         """
@@ -174,10 +190,12 @@ class ProposalIndexer:
             ).tolist()
 
             ids = [f"doc{document_id}_chunk{c.chunk_index}" for c in batch]
-            metadatas = [
-                {
+            metadatas = []
+            for c in batch:
+                meta = {
                     "document_id": document_id,
                     "project_id": project_id,
+                    "vendor_name": vendor_name,
                     "section_title": c.section_title,
                     "page_number": c.page_number,
                     "clause_ref": c.clause_ref or "",
@@ -185,8 +203,9 @@ class ProposalIndexer:
                     "chunk_index": c.chunk_index,
                     "technical_terms": json.dumps(extract_technical_terms(c.text)),
                 }
-                for c in batch
-            ]
+                if c.bbox is not None and len(c.bbox) >= 4:
+                    meta["bbox"] = json.dumps(c.bbox)
+                metadatas.append(meta)
 
             collection.add(
                 documents=texts,
@@ -261,11 +280,12 @@ class ProposalIndexer:
                 "page_number": meta.get("page_number", 0),
                 "clause_ref": meta.get("clause_ref", ""),
                 "technical_terms": json.loads(meta.get("technical_terms", "[]")),
+                "bbox": _bbox_from_metadata(meta),
             })
 
         return candidates
 
-    def retrieve_with_keyword_boost(
+    def retrieve_hybrid(
         self,
         query_text: str,
         project_id: int,
@@ -273,132 +293,107 @@ class ProposalIndexer:
         top_k: int | None = None,
     ) -> list[dict]:
         """
-        Stage 1 retrieval with keyword boost.
-
-        After ANN retrieval:
-        1. Extract technical terms from the query.
-        2. Scan collection for chunks containing those exact terms.
-        3. Promote exact-match hits to the top of the results list.
-
-        This prevents ISO 27001 requirement from being matched only
-        semantically when the vendor's document contains the exact string.
+        Stage 1 hybrid retrieval: Sparse BM25 + Dense vector search + RRF fusion.
         """
         top_k = top_k or settings.TOP_K_RETRIEVAL
-
-        # Get ANN results
-        ann_results = self.retrieve(query_text, project_id, document_id, top_k)
-
-        # Extract technical terms from query
-        query_terms = extract_technical_terms(query_text)
-        if not query_terms:
-            return ann_results  # No boost needed
-
-        min_semantic_score = 0.40
-        keyword_boost = 0.05
-
-        # Find which ANN results contain exact technical term matches
-        boosted_ids = set()
-        for result in ann_results:
-            chunk_terms = result.get("technical_terms", [])
-            semantic_ok = float(result.get("score", 0.0)) >= min_semantic_score
-            if semantic_ok and any(qt in chunk_terms for qt in query_terms):
-                boosted_ids.add(id(result))
-
-        if not boosted_ids:
-            # Terms not found in ANN results — try a direct collection scan
-            # for exact matches (only for short term lists to avoid slowness)
-            if len(query_terms) <= 3:
-                direct_matches = self._exact_term_search(
-                    query_terms,
-                    query_text,
-                    project_id,
-                    document_id,
-                    min_semantic_score=min_semantic_score,
-                )
-                # Deduplicate with ANN results (by text)
-                ann_texts = {r["text"] for r in ann_results}
-                new_matches = [r for r in direct_matches if r["text"] not in ann_texts]
-                if new_matches:
-                    # Add exact semantic matches with a small boost
-                    for r in new_matches:
-                        r["boosted"] = True
-                        r["score"] = min(1.0, float(r.get("score", 0.0)) + keyword_boost)
-                    combined = new_matches + ann_results
-                    combined.sort(key=lambda x: float(x.get("score", 0.0)), reverse=True)
-                    return combined[:top_k]
-
-        # Apply a bounded score boost only to semantically relevant exact matches.
-        for r in ann_results:
-            if id(r) in boosted_ids:
-                r["boosted"] = True
-                r["score"] = min(1.0, float(r.get("score", 0.0)) + keyword_boost)
-            else:
-                r["boosted"] = False
-
-        ann_results.sort(key=lambda x: float(x.get("score", 0.0)), reverse=True)
-        return ann_results[:top_k]
-
-    def _exact_term_search(
-        self,
-        terms: list[str],
-        query_text: str,
-        project_id: int,
-        document_id: int,
-        min_semantic_score: float = 0.40,
-    ) -> list[dict]:
-        """
-        Exact term matching using ChromaDB document filters, guarded by semantic relevance.
-        """
         coll_name = collection_name(project_id, document_id)
+
         try:
             collection = self.client.get_collection(coll_name)
-        except Exception:
+        except Exception as e:
+            raise ValueError(
+                f"Collection '{coll_name}' not found. "
+                f"Has document {document_id} been indexed? Error: {e}"
+            ) from e
+
+        # 1) Fetch all chunks in this collection for BM25 sparse retrieval
+        raw = collection.get(include=["documents", "metadatas"])
+        all_docs = raw.get("documents") or []
+        all_meta = raw.get("metadatas") or []
+        if not all_docs:
             return []
 
-        # Semantic guardrail: only keep exact matches that are still reasonably relevant.
+        # 2) Sparse BM25 ranking
+        tokenized_corpus = [doc.lower().split() for doc in all_docs]
+        bm25 = BM25Okapi(tokenized_corpus)
+        query_tokens = query_text.lower().split()
+        bm25_scores = bm25.get_scores(query_tokens)
+
+        bm25_ranked_idx = sorted(
+            range(len(all_docs)),
+            key=lambda i: float(bm25_scores[i]),
+            reverse=True,
+        )
+        bm25_rank_map = {idx: rank + 1 for rank, idx in enumerate(bm25_ranked_idx)}
+
+        # 3) Dense vector ranking (bi-encoder via ChromaDB ANN)
         query_embedding = self.encoder.encode(
             query_text,
             normalize_embeddings=True,
         ).tolist()
+        dense = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=min(len(all_docs), collection.count()),
+            include=["documents", "metadatas", "distances"],
+        )
 
-        results = []
-        seen_texts: set[str] = set()
-        for term in terms:
-            try:
-                matches = collection.get(
-                    where_document={"$contains": term},
-                    include=["documents", "metadatas"],
-                )
-                documents = matches.get("documents") or []
-                metadatas = matches.get("metadatas") or []
-                for text, meta in zip(documents, metadatas):
-                    if not text:
-                        continue
-                    if text in seen_texts:
-                        continue
-                    doc_embedding = self.encoder.encode(
-                        text,
-                        normalize_embeddings=True,
-                    ).tolist()
-                    semantic_similarity = fsum(
-                        float(a) * float(b) for a, b in zip(query_embedding, doc_embedding)
-                    )
-                    if semantic_similarity < min_semantic_score:
-                        continue
-                    seen_texts.add(text)
-                    results.append({
-                        "text": text,
-                        "score": round(float(semantic_similarity), 4),
-                        "metadata": meta,
-                        "section_title": meta.get("section_title", ""),
-                        "page_number": meta.get("page_number", 0),
-                        "clause_ref": meta.get("clause_ref", ""),
-                        "technical_terms": json.loads(meta.get("technical_terms", "[]")),
-                    })
-            except Exception as e:
-                logger.debug("Exact where_document search failed for term '%s': %s", term, e)
+        dense_score_map: dict[tuple[str, int, str], float] = {}
+        dense_rank_map: dict[tuple[str, int, str], int] = {}
+        dense_results = list(
+            zip(
+                dense.get("documents", [[]])[0],
+                dense.get("metadatas", [[]])[0],
+                dense.get("distances", [[]])[0],
+            )
+        )
+        for rank, (text, meta, distance) in enumerate(dense_results, start=1):
+            key = (
+                text,
+                int(meta.get("page_number", 0)),
+                str(meta.get("clause_ref", "")),
+            )
+            similarity = 1.0 - (float(distance) / 2.0)
+            dense_score_map[key] = round(similarity, 4)
+            dense_rank_map[key] = rank
 
-        return results
+        # 4) Retrieval-stage RRF fusion across BM25 + dense ranks
+        k = 60.0
+        fused: list[dict] = []
+        for idx, (text, meta) in enumerate(zip(all_docs, all_meta)):
+            key = (
+                text,
+                int(meta.get("page_number", 0)),
+                str(meta.get("clause_ref", "")),
+            )
+            bm25_rank = bm25_rank_map.get(idx, len(all_docs) + 1)
+            dense_rank = dense_rank_map.get(key, len(all_docs) + 1)
+            retrieval_rrf = (1.0 / (k + bm25_rank)) + (1.0 / (k + dense_rank))
+
+            fused.append({
+                "text": text,
+                # keep dense score shape expected downstream; default to 0 when missing
+                "score": float(dense_score_map.get(key, 0.0)),
+                "metadata": meta,
+                "section_title": meta.get("section_title", ""),
+                "page_number": meta.get("page_number", 0),
+                "clause_ref": meta.get("clause_ref", ""),
+                "technical_terms": json.loads(meta.get("technical_terms", "[]")),
+                "bbox": _bbox_from_metadata(meta),
+                "retrieval_rrf": retrieval_rrf,
+            })
+
+        fused.sort(key=lambda x: float(x.get("retrieval_rrf", 0.0)), reverse=True)
+        return fused[:top_k]
+
+    # Backward-compatible alias for legacy callers/tests.
+    def retrieve_with_keyword_boost(
+        self,
+        query_text: str,
+        project_id: int,
+        document_id: int,
+        top_k: int | None = None,
+    ) -> list[dict]:
+        return self.retrieve_hybrid(query_text, project_id, document_id, top_k)
 
     def delete_index(self, project_id: int, document_id: int) -> None:
         """Delete a document's vector index (e.g. when document is removed)."""
@@ -425,6 +420,7 @@ def index_document(
     parsed: ParsedDocument,
     project_id: int,
     document_id: int,
+    vendor_name: str,
 ) -> int:
     """Index a parsed document. Module-level convenience."""
-    return ProposalIndexer().index(parsed, project_id, document_id)
+    return ProposalIndexer().index(parsed, project_id, document_id, vendor_name)

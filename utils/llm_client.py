@@ -15,15 +15,18 @@ Design decisions:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
-import random
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from groq import AsyncGroq, Groq, RateLimitError
+from sqlalchemy import select
 
 from backend.config import settings
+from backend.database import AsyncSessionLocal, LLMCache
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +34,112 @@ logger = logging.getLogger(__name__)
 
 _client: Groq | None = None
 _async_client: AsyncGroq | None = None
-_groq_semaphore = asyncio.Semaphore(5)
+
+
+def _is_groq_rate_limit_error(e: BaseException) -> bool:
+    msg = str(e).lower()
+    return "429" in str(e) or "rate limit" in msg
+
+
+def _rate_limit_fallback_json_str() -> str:
+    return json.dumps(
+        {
+            "reply": "Data unavailable due to rate limits.",
+            "status": "NONE",
+            "confidence": 0.0,
+        }
+    )
+
+
+class _GroqRateLimitFakeResponse:
+    """Synthetic completion when Groq returns 429 after all retries."""
+
+    _is_rl_fallback = True
+
+    def __init__(self, content: str) -> None:
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=content))]
+
+
+def _map_generic_rl_fallback_to_entailment_shape(raw: dict[str, Any]) -> dict[str, Any]:
+    """Keep EntailmentResponse-compatible payload when using generic RL fallback JSON."""
+    if raw.get("reply") == "Data unavailable due to rate limits.":
+        return {
+            "status": "NONE",
+            "confidence": float(raw.get("confidence", 0.0)),
+            "evidence_quote": None,
+            "section_ref": None,
+            "explanation": str(raw["reply"]),
+        }
+    return raw
+
+
+async def _groq_chat_with_traffic_and_rl_backoff(
+    client: AsyncGroq,
+    *,
+    max_retries: int = 3,
+    **kwargs: Any,
+) -> Any:
+    """
+    Per-attempt: traffic slot (see services.audit_orchestrator) + 1.5s trickle, then create.
+    On 429 / rate limit: exponential-style backoff (attempt+1)*3 seconds between attempts.
+    After max_retries, return a synthetic response (never raises for exhausted RL).
+    Other errors: re-raise immediately.
+    """
+    from services.audit_orchestrator import run_llm_with_traffic
+
+    for attempt in range(max_retries):
+        try:
+            return await run_llm_with_traffic(client.chat.completions.create(**kwargs))
+        except Exception as e:
+            if not _is_groq_rate_limit_error(e):
+                raise
+            logger.warning(
+                "Groq rate limited (attempt %d/%d): %s",
+                attempt + 1,
+                max_retries,
+                e,
+            )
+            if attempt >= max_retries - 1:
+                return _GroqRateLimitFakeResponse(_rate_limit_fallback_json_str())
+            await asyncio.sleep((attempt + 1) * 3)
+    return _GroqRateLimitFakeResponse(_rate_limit_fallback_json_str())
+
+
+def _make_prompt_hash(system: str, prompt: str, model: str) -> str:
+    payload = f"{system}\n---\n{prompt}\n---\n{model}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+async def _get_cached_json(prompt_hash: str) -> dict[str, Any] | None:
+    db = AsyncSessionLocal()
+    try:
+        result = await db.execute(
+            select(LLMCache).where(LLMCache.prompt_hash == prompt_hash)
+        )
+        row = result.scalar_one_or_none()
+        if not row:
+            return None
+        logger.info("LLM Cache HIT")
+        return json.loads(row.response_json)
+    finally:
+        await db.close()
+
+
+async def _set_cached_json(prompt_hash: str, model_name: str, response_dict: dict[str, Any]) -> None:
+    db = AsyncSessionLocal()
+    try:
+        cache_row = LLMCache(
+            prompt_hash=prompt_hash,
+            model_name=model_name,
+            response_json=json.dumps(response_dict),
+        )
+        db.add(cache_row)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        # Best-effort cache write; avoid blocking normal LLM flow.
+    finally:
+        await db.close()
 
 
 def get_client() -> Groq:
@@ -92,65 +200,56 @@ def call_llm(
     retries = retries if retries is not None else settings.MAX_RETRIES
     client = get_client()
 
-    last_error: Exception | None = None
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
 
-    for attempt in range(retries):
+    max_rl_retries = 3
+    response = None
+    for attempt in range(max_rl_retries):
         try:
-            kwargs: dict[str, Any] = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
-
             response = client.chat.completions.create(**kwargs)
-            text = response.choices[0].message.content.strip()
-
-            if json_mode:
-                try:
-                    return json.loads(text)
-                except json.JSONDecodeError as e:
-                    logger.warning(
-                        "JSON parse failed on attempt %d/%d: %s\nRaw: %s",
-                        attempt + 1, retries, e, text[:200],
-                    )
-                    # Try to extract JSON from markdown fences if present
-                    if "```" in text:
-                        import re
-                        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-                        if match:
-                            return json.loads(match.group(1))
-                    raise
-
-            return text
-
-        except RateLimitError as e:
-            wait = 2 ** attempt
-            logger.warning(
-                "Rate limit hit on attempt %d/%d. Sleeping %ds. Error: %s",
-                attempt + 1, retries, wait, e,
-            )
-            time.sleep(wait)
-            last_error = e
-
+            break
         except Exception as e:
-            wait = 2 ** attempt
-            logger.error(
-                "LLM call failed on attempt %d/%d. Sleeping %ds. Error: %s",
-                attempt + 1, retries, wait, e,
+            if not _is_groq_rate_limit_error(e):
+                raise
+            logger.warning(
+                "Groq rate limited (sync attempt %d/%d): %s",
+                attempt + 1,
+                max_rl_retries,
+                e,
             )
-            if attempt < retries - 1:
-                time.sleep(wait)
-            last_error = e
+            if attempt >= max_rl_retries - 1:
+                if json_mode:
+                    return json.loads(_rate_limit_fallback_json_str())
+                return _rate_limit_fallback_json_str()
+            time.sleep((attempt + 1) * 3)
 
-    raise RuntimeError(
-        f"LLM call failed after {retries} attempts. Last error: {last_error}"
-    )
+    assert response is not None
+    text = (response.choices[0].message.content or "").strip()
+
+    if json_mode:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.warning("JSON parse failed: %s\nRaw: %s", e, text[:200])
+            if "```" in text:
+                import re
+
+                match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+                if match:
+                    return json.loads(match.group(1))
+            raise
+
+    return text
 
 
 async def acall_llm(
@@ -169,62 +268,47 @@ async def acall_llm(
     model = model or settings.SMART_MODEL
     retries = retries if retries is not None else settings.MAX_RETRIES
     client = get_async_client()
-    last_error: Exception | None = None
+    prompt_hash = _make_prompt_hash(system, prompt, model)
 
-    for attempt in range(retries):
-        try:
-            kwargs: dict[str, Any] = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            }
-            if json_mode:
-                kwargs["response_format"] = {"type": "json_object"}
+    if json_mode:
+        cached = await _get_cached_json(prompt_hash)
+        if cached is not None:
+            return cached
 
-            async with _groq_semaphore:
-                response = await client.chat.completions.create(**kwargs)
-            text = (response.choices[0].message.content or "").strip()
+        logger.info("LLM Cache MISS - Calling API")
 
-            if json_mode:
-                try:
-                    return json.loads(text)
-                except json.JSONDecodeError as e:
-                    logger.warning(
-                        "Async JSON parse failed on attempt %d/%d: %s\nRaw: %s",
-                        attempt + 1, retries, e, text[:200],
-                    )
-                    raise
-            return text
+    kwargs_llm: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        kwargs_llm["response_format"] = {"type": "json_object"}
 
-        except RateLimitError as e:
-            last_error = e
-            if attempt >= retries - 1:
-                break
-            wait = (2 ** attempt) + random.uniform(0, 0.25)
-            logger.warning(
-                "Async rate limit hit on attempt %d/%d. Sleeping %.2fs. Error: %s",
-                attempt + 1, retries, wait, e,
-            )
-            await asyncio.sleep(wait)
-
-        except Exception as e:
-            last_error = e
-            if attempt >= retries - 1:
-                break
-            wait = (2 ** attempt) + random.uniform(0, 0.25)
-            logger.error(
-                "Async LLM call failed on attempt %d/%d. Sleeping %.2fs. Error: %s",
-                attempt + 1, retries, wait, e,
-            )
-            await asyncio.sleep(wait)
-
-    raise RuntimeError(
-        f"Async LLM call failed after {retries} attempts. Last error: {last_error}"
+    response = await _groq_chat_with_traffic_and_rl_backoff(
+        client, max_retries=3, **kwargs_llm
     )
+    text = (response.choices[0].message.content or "").strip()
+
+    if json_mode:
+        try:
+            response_dict = json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.warning(
+                "Async JSON parse failed: %s\nRaw: %s",
+                e,
+                text[:200],
+            )
+            raise
+        if not getattr(response, "_is_rl_fallback", False):
+            await _set_cached_json(prompt_hash, model, response_dict)
+        return response_dict
+
+    return text
 
 
 # ── Convenience wrappers ──────────────────────────────────────────────────────
@@ -269,6 +353,13 @@ async def acall_smart(
 
     for attempt in range(3):
         try:
+            prompt_hash = _make_prompt_hash(base_system, prompt, current_model)
+            cached = await _get_cached_json(prompt_hash)
+            if cached is not None:
+                return cached
+
+            logger.info("LLM Cache MISS - Calling API")
+
             kwargs_payload: dict[str, Any] = {
                 "model": current_model,
                 "messages": [
@@ -279,14 +370,29 @@ async def acall_smart(
                 "max_tokens": max_tokens,
                 "response_format": {"type": "json_object"},
             }
-            async with _groq_semaphore:
-                response = await client.chat.completions.create(**kwargs_payload)
+            response = await _groq_chat_with_traffic_and_rl_backoff(
+                client, max_retries=3, **kwargs_payload
+            )
             text = (response.choices[0].message.content or "").strip()
-            return json.loads(text)
+            response_dict = json.loads(text)
+
+            if getattr(response, "_is_rl_fallback", False):
+                if current_model == settings.SMART_MODEL and attempt < 2:
+                    logger.warning(
+                        "Groq rate limit exhausted on %s; retrying with FAST_MODEL",
+                        current_model,
+                    )
+                    current_model = settings.FAST_MODEL
+                    await asyncio.sleep(1.0)
+                    continue
+                response_dict = _map_generic_rl_fallback_to_entailment_shape(response_dict)
+                return response_dict
+
+            await _set_cached_json(prompt_hash, current_model, response_dict)
+            return response_dict
 
         except RateLimitError as e:
             last_error = e
-            # On the second failure (attempt index 1), route to fallback model
             if attempt == 1:
                 logger.warning(
                     "SMART_MODEL rate-limited twice. Routing to FAST_MODEL fallback..."
@@ -295,7 +401,6 @@ async def acall_smart(
                 await asyncio.sleep(1.0)
                 continue
 
-            # Standard smart sleep based on error hint if present
             import re
 
             match = re.search(r"Please try again in ([0-9.]+)s", str(e))
@@ -324,6 +429,107 @@ async def acall_smart(
             await asyncio.sleep(wait)
 
     raise RuntimeError(f"acall_smart exhausted retries. Last error: {last_error}")
+
+
+def _make_messages_hash(messages: list[dict[str, str]], model: str) -> str:
+    """Stable hash for caching multi-turn chat completions."""
+    payload = json.dumps(messages, ensure_ascii=False) + "\n---\n" + model
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+async def acall_smart_messages(
+    messages: list[dict[str, str]],
+    *,
+    max_tokens: int = 800,
+    temperature: float = 0.0,
+    skip_cache: bool = False,
+) -> dict[str, Any]:
+    """
+    Async JSON-mode chat with arbitrary message list (system + user/assistant turns).
+    Same retry / rate-limit behaviour as acall_smart; cache keyed on full messages + model.
+    """
+    client = get_async_client()
+    current_model = settings.SMART_MODEL
+    last_error: Exception | None = None
+
+    for attempt in range(3):
+        try:
+            prompt_hash = _make_messages_hash(messages, current_model)
+            
+            if not skip_cache:
+                cached = await _get_cached_json(prompt_hash)
+                if cached is not None:
+                    return cached
+
+
+            logger.info("LLM Cache MISS - Calling API (messages mode)")
+
+            kwargs_payload: dict[str, Any] = {
+                "model": current_model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "response_format": {"type": "json_object"},
+            }
+            response = await _groq_chat_with_traffic_and_rl_backoff(
+                client, max_retries=3, **kwargs_payload
+            )
+            text = (response.choices[0].message.content or "").strip()
+            response_dict = json.loads(text)
+
+            if getattr(response, "_is_rl_fallback", False):
+                if current_model == settings.SMART_MODEL and attempt < 2:
+                    logger.warning(
+                        "Groq rate limit exhausted on %s (messages); retrying with FAST_MODEL",
+                        current_model,
+                    )
+                    current_model = settings.FAST_MODEL
+                    await asyncio.sleep(1.0)
+                    continue
+                return response_dict
+
+            if not skip_cache:
+                await _set_cached_json(prompt_hash, current_model, response_dict)
+            return response_dict
+
+        except RateLimitError as e:
+            last_error = e
+            if attempt == 1:
+                logger.warning(
+                    "SMART_MODEL rate-limited twice. Routing to FAST_MODEL fallback..."
+                )
+                current_model = settings.FAST_MODEL
+                await asyncio.sleep(1.0)
+                continue
+
+            import re
+
+            match = re.search(r"Please try again in ([0-9.]+)s", str(e))
+            wait_time = (float(match.group(1)) + 1.0) if match else (3 ** attempt)
+            logger.warning(
+                "Rate limit on model %s attempt %d/3. Sleeping %.2fs. Error: %s",
+                current_model,
+                attempt + 1,
+                wait_time,
+                e,
+            )
+            await asyncio.sleep(wait_time)
+
+        except Exception as e:
+            last_error = e
+            if attempt == 2:
+                break
+            wait = 2 ** attempt
+            logger.error(
+                "acall_smart_messages failed on model %s attempt %d/3. Sleeping %.2fs. Error: %s",
+                current_model,
+                attempt + 1,
+                wait,
+                e,
+            )
+            await asyncio.sleep(wait)
+
+    raise RuntimeError(f"acall_smart_messages exhausted retries. Last error: {last_error}")
 
 
 async def acall_fast(prompt: str, system: str | None = None, **kwargs) -> dict[str, Any]:
@@ -369,3 +575,44 @@ async def acall_fast_batch(
         if i < len(prompts) - 1:
             await asyncio.sleep(sleep)
     return results
+
+async def acall_smart_messages_stream(
+    messages: list[dict[str, str]],
+    *,
+    max_tokens: int = 800,
+    temperature: float = 0.0,
+) -> AsyncGenerator[str, None]:
+    """
+    Async generator that yields raw text delta strings as the LLM produces them.
+ 
+    The caller is responsible for accumulating the full reply.
+    The model is still instructed to respond in JSON mode, so the deltas will
+    spell out the JSON incrementally.  The frontend strips the wrapper.
+ 
+    Usage:
+        async for token in acall_smart_messages_stream(messages):
+            yield token
+    """
+    client = get_async_client()
+ 
+    try:
+        stream = await client.chat.completions.create(
+            model=settings.SMART_MODEL,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            
+            stream=True,
+        )
+ 
+        async for chunk in stream:
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                yield delta.content
+ 
+    except Exception as e:
+        logger.warning(
+            "acall_smart_messages_stream failed (%s). "
+            "The chat router will fall back to non-streaming.", e
+        )
+        raise NotImplementedError("Streaming not available, use fallback") from e

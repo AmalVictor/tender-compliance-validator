@@ -68,3 +68,10 @@ logs/
 
 # Reports (generated output)
 reports/
+
+frontend/node_modules/
+# Node (frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/build/
+frontend/dist/

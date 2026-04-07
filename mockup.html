@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TenderAI — Compliance Validator</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F4F3EF;--bg2:#EBEBE4;--surface:#FFFFFF;--border:rgba(15,17,23,0.08);--border-s:rgba(15,17,23,0.14);
+  --sb:#0F1117;--sb-txt:rgba(255,255,255,0.55);--sb-act:rgba(255,255,255,0.09);
+  --t1:#111318;--t2:#52525B;--t3:#A1A1AA;
+  --ac:#0C7B72;--ac-bg:#E5F5F3;
+  --full:#059669;--full-bg:#ECFDF5;--part:#D97706;--part-bg:#FFFBEB;
+  --none:#DC2626;--none-bg:#FEF2F2;--ambg:#7C3AED;--ambg-bg:#EDE9FE;
+  --crit:#DC2626;--high:#EA580C;--med:#CA8A04;--low:#16A34A;
+  --fn:'Outfit',sans-serif;--fm:'IBM Plex Mono',monospace;
+  --r:8px;--r2:12px;
+  --sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --sh2:0 4px 16px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --sh3:0 8px 32px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fn);background:var(--bg);color:var(--t1);height:100vh;overflow:hidden;display:flex;font-size:14px;line-height:1.5}
+
+/* ─── Sidebar ─── */
+.sb{width:58px;background:var(--sb);display:flex;flex-direction:column;align-items:center;padding:14px 0;gap:2px;flex-shrink:0;z-index:50}
+.logo{width:34px;height:34px;background:var(--ac);border-radius:9px;display:flex;align-items:center;justify-content:center;margin-bottom:22px;font-size:12px;font-weight:700;color:white;letter-spacing:-.5px;cursor:pointer}
+.ni{width:42px;height:42px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--sb-txt);transition:all .15s;gap:3px;position:relative}
+.ni:hover{background:var(--sb-act);color:rgba(255,255,255,.85)}
+.ni.on{background:rgba(12,123,114,.28);color:#5DD0C8}
+.ni svg{width:17px;height:17px;flex-shrink:0}
+.ni span{font-size:7.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.nd{width:26px;height:1px;background:rgba(255,255,255,.07);margin:5px 0}
+.nb{margin-top:auto}
+
+/* ─── Main layout ─── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ─── Topbar — CLEANED UP ─── */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 22px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+.pj{flex:1;min-width:0}
+.pj-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj-sub{font-size:11px;color:var(--t3);margin-top:1px;font-family:var(--fm)}
+.kpi-band{display:flex;gap:1px;background:var(--border);border-radius:10px;overflow:hidden;flex-shrink:0}
+.kpi{background:var(--surface);padding:7px 15px;text-align:center;min-width:88px}
+.kv{font-size:17px;font-weight:700;letter-spacing:-.5px;line-height:1}
+.kl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;margin-top:3px;font-weight:600}
+.kv.g{color:var(--full)}.kv.r{color:var(--crit)}.kv.a{color:var(--med)}.kv.b{color:#1D4ED8}
+.topbar-actions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+
+/* ─── Tabs ─── */
+.tabs{display:flex;padding:0 22px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{padding:9px 15px;font-size:13px;font-weight:500;color:var(--t2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tab:hover{color:var(--t1)}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.tab-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:none}
+.tab.on .tab-dot{display:block}
+.tcnt{font-size:10px;padding:1px 6px;border-radius:100px;font-weight:700;margin-left:2px}
+.tcnt-r{background:#FEF2F2;color:var(--none)}
+.tcnt-o{background:#FFF4ED;color:var(--high)}
+.tcnt-g{background:#ECFDF5;color:var(--full)}
+
+/* ─── Content ─── */
+.cr{flex:1;display:flex;overflow:hidden}
+.scr{flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:16px}
+.pane{display:none;flex-direction:column;gap:16px}
+.pane.on{display:flex}
+
+/* ─── Cards ─── */
+.card{background:var(--surface);border-radius:var(--r2);border:1px solid var(--border);box-shadow:var(--sh)}
+.ch{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ct{font-size:13px;font-weight:600}
+.cb{padding:18px}
+
+/* ─── Badges ─── */
+.bd{display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600;letter-spacing:.02em}
+.bd-full{background:var(--full-bg);color:var(--full)}
+.bd-part{background:var(--part-bg);color:var(--part)}
+.bd-none{background:var(--none-bg);color:var(--none)}
+.bd-ambg{background:var(--ambg-bg);color:var(--ambg)}
+.bd-crit{background:#FEF2F2;color:var(--crit)}
+.bd-high{background:#FFF4ED;color:var(--high)}
+.bd-med{background:#FEFCE8;color:var(--med)}
+.bd-low{background:#F0FDF4;color:var(--low)}
+.bd-tech{background:#EFF6FF;color:#1D4ED8}
+.bd-leg{background:#FDF4FF;color:#7E22CE}
+.bd-fin{background:#FFF7ED;color:#C2410C}
+.bd-adm{background:#F0FDF4;color:#15803D}
+.bd-mand{background:#FEF2F2;color:var(--none)}
+.bd-rec{background:#F0FDF4;color:var(--low)}
+
+/* ─── Buttons ─── */
+.btn{padding:7px 14px;border-radius:var(--r);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;border:none;font-family:var(--fn);display:inline-flex;align-items:center;gap:5px}
+.btn-p{background:var(--ac);color:white}.btn-p:hover{background:#0A6560}
+.btn-g{background:transparent;border:1px solid var(--border-s);color:var(--t2)}.btn-g:hover{background:var(--bg)}
+.btn-sm{padding:4px 10px;font-size:11px}
+.btn-icon{width:28px;height:28px;padding:0;justify-content:center;border-radius:6px}
+.btn-run{background:linear-gradient(135deg,#0C7B72,#059669);color:white;padding:7px 16px;font-size:12px;font-weight:700;border-radius:8px;border:none;cursor:pointer;font-family:var(--fn);display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(12,123,114,.35);transition:all .15s}
+.btn-run:hover{box-shadow:0 4px 16px rgba(12,123,114,.45);transform:translateY(-1px)}
+.btn-run:disabled{opacity:.6;cursor:not-allowed;transform:none}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin 1s linear infinite;display:inline-block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{animation:fadeUp .18s ease forwards}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(1.15)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:3px}
+
+/* ═══ WORKSPACE ═══ */
+.ws-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.upload-zone{border:1.5px dashed var(--border-s);border-radius:var(--r2);padding:28px 22px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
+.upload-zone:hover{border-color:var(--ac);background:var(--ac-bg)}
+.uz-icon{width:40px;height:40px;background:rgba(0,0,0,.06);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.uz-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.uz-sub{font-size:12px;color:var(--t3)}
+.doc-list{display:flex;flex-direction:column;gap:6px}
+.doc-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg);transition:all .15s}
+.doc-row:hover{border-color:var(--border-s);background:var(--surface);box-shadow:var(--sh)}
+.doc-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.doc-name{font-size:13px;font-weight:500;flex:1}
+.doc-meta{font-size:11px;color:var(--t3);font-family:var(--fm)}
+.vendor-rows{display:flex;flex-direction:column;gap:8px}
+.vr{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg);cursor:pointer;transition:all .15s}
+.vr:hover{background:var(--surface);border-color:var(--border-s);box-shadow:var(--sh)}
+.vdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.vname{font-weight:600;font-size:13px;flex:1}
+.vscore{font-family:var(--fm);font-size:13px;font-weight:600}
+.vbar-w{width:70px;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.vbar{height:100%;border-radius:2px;transition:width .6s ease}
+
+/* ─── Pipeline ─── */
+.pipeline{display:flex;gap:0;align-items:stretch;overflow:hidden;border-radius:var(--r);border:1px solid var(--border)}
+.pip-step{flex:1;padding:10px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface);border-right:1px solid var(--border)}
+.pip-step:last-child{border-right:none}
+.pip-step.done{background:#ECFDF5}
+.pip-step.active{background:#E5F5F3;border-top:2px solid var(--ac)}
+.pip-step.pending{background:var(--bg)}
+.pip-icon{font-size:16px}
+.pip-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);text-align:center;line-height:1.3}
+.pip-step.done .pip-label{color:var(--full)}
+.pip-step.active .pip-label{color:var(--ac)}
+
+/* ─── Export bar ─── */
+.export-bar{background:linear-gradient(135deg,#0A5954,#0C7B72);border-radius:var(--r2);padding:16px 20px;display:flex;align-items:center;gap:16px;color:white}
+.eb-text{flex:1}
+.eb-title{font-size:14px;font-weight:600}
+.eb-sub{font-size:12px;opacity:.8;margin-top:2px}
+.export-steps{display:flex;gap:0;margin-top:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,.15)}
+.es{flex:1;display:flex;align-items:center;gap:6px;font-size:11px;color:rgba(255,255,255,.7)}
+.es-dot{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
+.es.done .es-dot{background:rgba(255,255,255,.9);color:#0A5954}
+.es.active .es-dot{background:rgba(255,255,255,.9);color:#0A5954;animation:pulseDot 1s infinite}
+.es.active{color:white;font-weight:600}
+.es-arr{color:rgba(255,255,255,.3);font-size:12px;margin:0 4px}
+
+/* ═══ REQUIREMENTS ═══ */
+.req-filters{display:flex;gap:7px;flex-wrap:wrap}
+.fb{padding:5px 12px;border-radius:100px;border:1px solid var(--border-s);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--t2)}
+.fb:hover,.fb.on{background:var(--ac);color:white;border-color:var(--ac)}
+.rtable{width:100%;border-collapse:collapse}
+.rtable th{padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);border-bottom:1px solid var(--border);background:#FAFAF8;position:sticky;top:0;z-index:2}
+.rtable td{padding:9px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+.rtable tr:hover td{background:#FAFAF8}
+.rtable tr:last-child td{border-bottom:none}
+.toggle{width:32px;height:18px;border-radius:9px;background:rgba(0,0,0,.15);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--ac)}
+.toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:white;top:2px;left:2px;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.toggle.on::after{transform:translateX(14px)}
+.conf-row{display:flex;align-items:center;gap:6px}
+.conf-bar{width:50px;height:3px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.conf-fill{height:100%;border-radius:2px}
+.group-hdr td{background:#F5F4F0!important;padding:6px 14px!important}
+.grp-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3)}
+/* ─── NEEDS REVIEW flag ─── */
+.review-flag{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--part);background:var(--part-bg);border-radius:4px;padding:1px 6px;margin-left:4px}
+
+/* ═══ COMPLIANCE MATRIX ═══ */
+/* ─── FEATURE 1: Verdict card ─── */
+.verdict-card{background:linear-gradient(135deg,#ECFDF5 0%,#E5F5F3 100%);border:1.5px solid #A7D9D6;border-radius:var(--r2);padding:16px 20px;display:flex;align-items:center;gap:16px}
+.vc-icon{width:44px;height:44px;background:var(--ac);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vc-body{flex:1}
+.vc-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ac);margin-bottom:3px}
+.vc-title{font-size:15px;font-weight:700;color:var(--t1)}
+.vc-reason{font-size:12px;color:var(--t2);margin-top:4px;line-height:1.5}
+.vc-scores{display:flex;gap:16px;flex-shrink:0}
+.vc-score{text-align:center}
+.vc-score-val{font-size:22px;font-weight:700;font-family:var(--fm)}
+.vc-score-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-top:1px}
+
+/* ─── FEATURE 2: Gap summary card ─── */
+.gap-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.gs-item{padding:12px 14px;border-radius:var(--r);border:1px solid var(--border)}
+.gs-val{font-size:22px;font-weight:700;font-family:var(--fm);line-height:1;margin-bottom:4px}
+.gs-label{font-size:11px;color:var(--t2);line-height:1.4}
+.gs-sub{font-size:10px;color:var(--t3);margin-top:3px}
+
+.matrix-wrap{overflow:auto;border-radius:var(--r2);border:1px solid var(--border);background:var(--surface);box-shadow:var(--sh)}
+.mx{width:100%;border-collapse:collapse;min-width:640px}
+.mx th{padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);border-bottom:2px solid var(--border-s);background:#FAFAF8;white-space:nowrap}
+.mx th.req-col{text-align:left;min-width:260px;position:sticky;left:0;z-index:3;border-right:2px solid var(--border-s)}
+.mx th.v-col{text-align:center;min-width:155px;border-left:1px solid var(--border)}
+.mx td{border-bottom:1px solid var(--border);vertical-align:middle}
+.mx tr:last-child td{border-bottom:none}
+.mx tr:hover td{background:#FAFAF8}
+.mx .grp-hdr td{background:#F5F4F0!important;padding:5px 16px!important}
+.req-col-td{padding:10px 14px 10px 16px;position:sticky;left:0;background:white;z-index:2;border-right:2px solid var(--border-s)}
+.mx tr:hover .req-col-td{background:#FAFAF8}
+.req-txt{font-size:12px;font-weight:500;margin-bottom:3px}
+.req-meta{display:flex;gap:5px;align-items:center}
+.vc-td{padding:8px 10px;text-align:center;border-left:1px solid var(--border);cursor:pointer;transition:background .12s}
+.vc-td:hover{background:#F0FAF9!important}
+.vc-td.is-none{background:#FEF8F8}
+.mx tr:hover .vc-td.is-none{background:#FEE8E8!important}
+.chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600}
+.chip-full{background:var(--full-bg);color:var(--full)}
+.chip-part{background:var(--part-bg);color:var(--part)}
+.chip-none{background:var(--none-bg);color:var(--none)}
+.chip-ambg{background:var(--ambg-bg);color:var(--ambg)}
+
+/* ─── Tooltip ─── */
+.tip{position:relative}
+.tip .tip-box{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1C1E26;color:white;padding:10px 13px;border-radius:9px;font-size:12px;line-height:1.55;width:240px;pointer-events:none;opacity:0;transition:opacity .15s;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.tip:hover .tip-box{opacity:1}
+.tip .tip-box::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1C1E26}
+.tip-conf{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.12);font-size:11px;color:rgba(255,255,255,.65);font-family:var(--fm)}
+.tip-sect{font-size:10px;color:rgba(255,255,255,.5);margin-top:2px}
+
+/* ─── FEATURE 7: Vendor comparison diff ─── */
+.diff-modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.diff-modal.open{opacity:1;pointer-events:all}
+.diff-overlay{position:absolute;inset:0;background:rgba(0,0,0,.4)}
+.diff-panel{position:relative;background:var(--surface);border-radius:var(--r2);width:min(900px,90vw);max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--sh3)}
+.diff-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.diff-body{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden}
+.diff-col{padding:20px;overflow-y:auto;border-right:1px solid var(--border)}
+.diff-col:last-child{border-right:none}
+.diff-col-head{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.diff-text{font-size:13px;line-height:1.8;color:var(--t1)}
+.diff-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0}
+
+/* ═══ RISK HEATMAP ═══ */
+.hm-wrap{border-radius:var(--r2);border:1px solid var(--border);overflow:hidden;background:var(--surface);box-shadow:var(--sh)}
+.hm-tbl{width:100%;border-collapse:collapse}
+.hm-tbl th{padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2);border-bottom:2px solid var(--border-s);background:#FAFAF8;text-align:center;border-right:1px solid var(--border)}
+.hm-tbl th:first-child{text-align:left;border-right:2px solid var(--border-s);min-width:160px}
+.hm-tbl th:last-child{border-right:none}
+.hm-tbl td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);vertical-align:middle}
+.hm-tbl tr:last-child td{border-bottom:none}
+.hm-tbl td:last-child{border-right:none}
+.hm-vendor{padding:12px 18px;font-weight:600;font-size:13px;border-right:2px solid var(--border-s)!important;display:flex;align-items:center;gap:8px}
+.hm-cell{padding:12px 10px;text-align:center;cursor:pointer;transition:all .15s;min-height:64px}
+.hm-cell:hover{filter:brightness(.9);transform:scale(1.02)}
+.hm-cnt{font-family:var(--fm);font-size:22px;font-weight:600;line-height:1}
+.hm-lbl{font-size:10px;font-weight:600;margin-top:3px;opacity:.85}
+.hm-crit{background:#FECACA;color:#991B1B}
+.hm-high{background:#FED7AA;color:#9A3412}
+.hm-med{background:#FEF08A;color:#854D0E}
+.hm-low{background:#BBF7D0;color:#14532D}
+.hm-nil{background:#F4F4F5;color:#A1A1AA}
+.legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)}
+.leg-swatch{width:12px;height:12px;border-radius:3px}
+
+/* ─── FEATURE 6: Vendor risk timeline ─── */
+.risk-timeline{position:relative;padding:16px 0 4px}
+.rtl-axis{height:2px;background:var(--bg2);border-radius:1px;position:relative;margin:0 20px}
+.rtl-vendor{margin-bottom:24px}
+.rtl-vendor-label{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.rtl-track{position:relative;height:32px}
+.rtl-bar{position:absolute;top:14px;left:0;right:0;height:2px;background:var(--bg2);border-radius:1px}
+.rtl-flag{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.rtl-pin{width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:var(--sh);transition:transform .15s}
+.rtl-flag:hover .rtl-pin{transform:scale(1.4)}
+.rtl-pg{font-size:9px;font-family:var(--fm);color:var(--t3);margin-top:4px;white-space:nowrap}
+
+.risk-list{display:flex;flex-direction:column;gap:0}
+.risk-row{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.risk-row:last-child{border-bottom:none}
+.risk-sev{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700}
+.risk-info{flex:1;min-width:0}
+.risk-phrase{font-size:12px;font-weight:600;font-family:var(--fm);margin-bottom:2px}
+.risk-impact{font-size:12px;color:var(--t2);line-height:1.4}
+.risk-meta{font-size:11px;color:var(--t3);margin-top:3px;display:flex;gap:8px;align-items:center}
+
+/* ─── Risk detail drawer ─── */
+.risk-drawer{position:fixed;right:0;top:0;height:100vh;width:400px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-8px 0 32px rgba(0,0,0,.12);z-index:500;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+.risk-drawer.open{transform:translateX(0)}
+.rd-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-shrink:0}
+.rd-body{flex:1;overflow-y:auto;padding:18px}
+.rd-field{margin-bottom:16px}
+.rd-field-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:5px}
+.rd-field-val{font-size:13px;line-height:1.6;color:var(--t1);background:var(--bg);border-radius:var(--r);padding:10px 12px;border:1px solid var(--border)}
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.2);z-index:490;display:none}
+.drawer-overlay.open{display:block}
+
+/* ═══ DEEP DIVE ═══ */
+.dd-selector{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.req-select{padding:7px 12px;border-radius:var(--r);border:1px solid var(--border-s);font-family:var(--fn);font-size:13px;background:var(--surface);color:var(--t1);outline:none;cursor:pointer}
+.req-select:focus{border-color:var(--ac)}
+.vendor-btns{display:flex;gap:6px}
+.vbtn{padding:5px 12px;border-radius:100px;border:1px solid var(--border-s);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--surface);color:var(--t2)}
+.vbtn.on{background:var(--ac);color:white;border-color:var(--ac)}
+
+/* ─── FEATURE 3: Bi-directional trace with document viewer ─── */
+.dd-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dd-pane{display:flex;flex-direction:column;border-radius:var(--r2);overflow:hidden;border:1px solid var(--border);box-shadow:var(--sh);min-height:420px}
+.dp-head{padding:10px 15px;background:#FAFAF8;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.dp-ht{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2)}
+.dp-ref{font-size:11px;font-family:var(--fm);color:var(--t3)}
+.dp-body{flex:1;overflow-y:auto;padding:16px;background:var(--surface);font-size:14px;line-height:1.75;color:var(--t1)}
+.hl-rfp{background:#FEF9C3;border-bottom:2px solid #CA8A04;cursor:pointer}
+.hl-ev{background:#DCFCE7;border-bottom:2px solid #16A34A;cursor:pointer;border-radius:2px}
+.hl-ev:hover{background:#BBF7D0}
+.hl-miss{background:#FEE2E2;border-bottom:2px solid #DC2626;border-radius:2px}
+.miss-banner{background:var(--none-bg);border:1px solid #FECACA;border-radius:var(--r);padding:9px 13px;display:flex;align-items:flex-start;gap:9px;margin-bottom:12px;font-size:12px;line-height:1.5;color:#991B1B}
+
+/* ─── Document "page" viewer ─── */
+.doc-viewer{background:#F8F7F2;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;font-size:12px;line-height:1.9;color:var(--t2);position:relative;font-family:Georgia,serif}
+.doc-viewer-head{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.doc-page-num{position:absolute;bottom:10px;right:14px;font-size:9px;color:var(--t3);font-family:var(--fm)}
+/* ─── FEATURE 3b: Annotation highlight ─── */
+.hl-human{background:#FEF3C7;border-bottom:2px solid #F59E0B;border-radius:2px;cursor:pointer}
+.hl-human::after{content:'✎';font-size:9px;color:#92400E;margin-left:3px}
+.trace-arrow{position:absolute;left:50%;transform:translateX(-50%);top:-18px;z-index:5;font-size:16px;color:var(--ac)}
+.src-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ac);font-family:var(--fm);cursor:pointer;border-bottom:1px dashed var(--ac);transition:opacity .15s}
+.src-link:hover{opacity:.7}
+
+.ai-box{border-radius:var(--r);border:1px solid var(--border);overflow:hidden;margin-top:14px}
+.ai-head{padding:8px 13px;background:#FAFAF8;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t2)}
+.ai-spark{width:14px;height:14px;background:var(--ac);border-radius:3px;display:flex;align-items:center;justify-content:center}
+.ai-body-txt{padding:11px 13px;font-size:13px;line-height:1.6;color:var(--t1)}
+.ai-foot{padding:6px 13px;background:#FAFAF8;border-top:1px solid var(--border);display:flex;gap:14px;font-size:10px;color:var(--t3);font-family:var(--fm)}
+.action-row{display:flex;gap:7px;margin-top:14px}
+.act-btn{padding:6px 13px;border-radius:100px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:all .15s;font-family:var(--fn)}
+.act-accept{background:#F0FDF4;color:var(--low);border-color:#BBF7D0}.act-accept:hover{background:#DCFCE7}
+.act-adj{background:#FFFBEB;color:var(--part);border-color:#FDE68A}.act-adj:hover{background:#FEF3C7}
+.act-rej{background:var(--none-bg);color:var(--none);border-color:#FECACA}.act-rej:hover{background:#FEE2E2}
+
+/* ─── FEATURE 5: Audit trail ─── */
+.audit-trail{margin-top:16px}
+.at-toggle{font-size:11px;font-weight:600;color:var(--t3);cursor:pointer;display:flex;align-items:center;gap:4px;padding:8px 0;border-top:1px solid var(--border);user-select:none}
+.at-toggle:hover{color:var(--t2)}
+.at-log{display:none;flex-direction:column;gap:0;margin-top:8px}
+.at-log.open{display:flex}
+.at-entry{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+.at-entry:last-child{border-bottom:none}
+.at-time{font-family:var(--fm);font-size:10px;color:var(--t3);white-space:nowrap;flex-shrink:0;padding-top:1px;min-width:42px}
+.at-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.at-text{flex:1;color:var(--t2);line-height:1.5}
+.at-text strong{color:var(--t1);font-weight:600}
+.at-human{background:#FFFBEB;margin:0 -18px;padding:7px 18px}
+.at-human .at-text{color:#92400E}
+
+/* ═══ CHAT ═══ */
+.rp{width:308px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .25s,opacity .25s;overflow:hidden}
+.rp.closed{width:0;opacity:0;pointer-events:none}
+.rp-head{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.rp-title{font-size:13px;font-weight:600;flex:1}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:11px}
+.msg{max-width:88%}
+.msg-ai{align-self:flex-start}
+.msg-user{align-self:flex-end}
+.msg-lbl{font-size:10px;color:var(--t3);font-weight:500;margin-bottom:3px}
+.msg-user .msg-lbl{text-align:right}
+.bubble{padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.55}
+.msg-ai .bubble{background:#F4F3EF;border:1px solid var(--border);border-radius:4px 12px 12px 12px;color:var(--t1)}
+.msg-user .bubble{background:var(--ac);color:white;border-radius:12px 4px 12px 12px}
+.cite{font-size:11px;color:var(--ac);font-family:var(--fm);margin-top:5px;cursor:pointer}
+.cite:hover{text-decoration:underline}
+.ci{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.ci-input{flex:1;padding:8px 11px;border:1px solid var(--border-s);border-radius:var(--r);font-family:var(--fn);font-size:13px;outline:none;transition:border-color .15s;background:var(--bg)}
+.ci-input:focus{border-color:var(--ac)}
+.chat-pill{display:flex;flex-direction:column;gap:5px;margin-top:3px}
+.pill{padding:5px 11px;border-radius:100px;border:1px solid var(--border-s);font-size:11px;font-weight:500;cursor:pointer;color:var(--t2);transition:all .15s;background:var(--surface);text-align:left}
+.pill:hover{background:var(--ac-bg);border-color:var(--ac);color:var(--ac)}
+.typing span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--t3);animation:pulse 1.2s ease infinite}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+.typing{display:flex;gap:3px;align-items:center;padding:4px 0}
+
+/* ─── Toast ─── */
+.override-toast{position:fixed;bottom:24px;right:28px;background:#1C1E26;color:white;padding:10px 16px;border-radius:var(--r2);font-size:12px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh2);z-index:700;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.override-toast.show{opacity:1;transform:translateY(0)}
+
+/* misc */
+.sec-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center}
+.muted{color:var(--t2)}
+.mono{font-family:var(--fm)}
+.text-xs{font-size:11px}
+.text-sm{font-size:12px}
+.mt1{margin-top:4px}.mt2{margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sb">
+  <div class="logo">TA</div>
+  <div class="ni on" onclick="showTab('workspace',this)">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+    <span>Space</span>
+  </div>
+  <div class="ni" onclick="showTab('reqs',this)">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
+    <span>Reqs</span>
+  </div>
+  <div class="ni" onclick="showTab('matrix',this)">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m2.25-2.25h-.375m0 0c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m.375-2.25H15c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125"/></svg>
+    <span>Matrix</span>
+  </div>
+  <div class="ni" onclick="showTab('heatmap',this)">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+    <span>Risk</span>
+  </div>
+  <div class="ni" onclick="showTab('deepdive',this)">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    <span>Trace</span>
+  </div>
+  <div class="nd"></div>
+  <div class="nb">
+    <div class="ni" onclick="toggleChat()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.275 2.903 2.85 2.903h.75l.75 2.25.75-2.25h3.75c1.575 0 2.85-1.302 2.85-2.903V7.24c0-1.601-1.275-2.903-2.85-2.903H5.1c-1.575 0-2.85 1.302-2.85 2.903v5.52z"/></svg>
+      <span>Ask AI</span>
+    </div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- TOPBAR — cleaned, no recommendation pill -->
+  <div class="topbar">
+    <div class="pj">
+      <div class="pj-name">Dept. of Health — ICT Infrastructure Tender 2025</div>
+      <div class="pj-sub">DOH-ICT-2025-004 · Due 15 Apr 2025 · R 42.8M contract value</div>
+    </div>
+    <div class="kpi-band">
+      <div class="kpi"><div class="kv g">92%</div><div class="kl">Best Score</div></div>
+      <div class="kpi"><div class="kv r">3</div><div class="kl">Crit. Risks</div></div>
+      <div class="kpi"><div class="kv a">3</div><div class="kl">Gaps</div></div>
+      <div class="kpi"><div class="kv b">3</div><div class="kl">Vendors</div></div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-g" onclick="showTab('deepdive',document.querySelectorAll('.ni')[4],'tab-deepdive')">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803 7.5 7.5 0 0015.803 15.803z"/></svg>
+        Deep Dive
+      </button>
+      <button class="btn btn-p" id="exportBtn" onclick="simulateExport()">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Export PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab on" id="tab-workspace" onclick="showTab('workspace',null,'tab-workspace')"><div class="tab-dot"></div>Workspace</div>
+    <div class="tab" id="tab-reqs" onclick="showTab('reqs',null,'tab-reqs')"><div class="tab-dot"></div>Requirements <span class="tcnt tcnt-g">10</span></div>
+    <div class="tab" id="tab-matrix" onclick="showTab('matrix',null,'tab-matrix')"><div class="tab-dot"></div>Compliance Matrix <span class="tcnt tcnt-r" id="tab-none-count">3 gaps</span></div>
+    <div class="tab" id="tab-heatmap" onclick="showTab('heatmap',null,'tab-heatmap')"><div class="tab-dot"></div>Risk Heatmap <span class="tcnt tcnt-o">4 risks</span></div>
+    <div class="tab" id="tab-deepdive" onclick="showTab('deepdive',null,'tab-deepdive')"><div class="tab-dot"></div>Deep Dive</div>
+  </div>
+
+  <div class="cr">
+    <div class="scr">
+
+      <!-- ══ WORKSPACE ══ -->
+      <div class="pane on" id="pane-workspace">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">Audit Pipeline</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--t3)">Last run: 2 min ago</span>
+              <button class="btn-run" id="runAuditBtn" onclick="simulateRunAudit()">
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg>
+                Re-run Audit
+              </button>
+            </div>
+          </div>
+          <div class="cb" style="padding:14px 18px">
+            <div class="pipeline">
+              <div class="pip-step done"><div class="pip-icon">📄</div><div class="pip-label">RFP<br>Uploaded</div></div>
+              <div class="pip-step done"><div class="pip-icon">🔍</div><div class="pip-label">Reqs<br>Extracted</div></div>
+              <div class="pip-step done"><div class="pip-icon">✅</div><div class="pip-label">Reqs<br>Confirmed</div></div>
+              <div class="pip-step done"><div class="pip-icon">📁</div><div class="pip-label">Proposals<br>Indexed</div></div>
+              <div class="pip-step active"><div class="pip-icon">🤖</div><div class="pip-label">Audit<br>Complete</div></div>
+              <div class="pip-step pending"><div class="pip-icon">📊</div><div class="pip-label">Report<br>Ready</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="ws-grid">
+          <div>
+            <div class="sec-lbl">Tender Document (RFP)</div>
+            <div class="upload-zone" onclick="showToast('File picker opens here in the full app')">
+              <div class="uz-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#0C7B72" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></div>
+              <div class="uz-title">Upload RFP Document</div>
+              <div class="uz-sub">PDF, DOCX up to 50 MB</div>
+            </div>
+            <div class="doc-list mt2">
+              <div class="doc-row">
+                <div class="doc-icon" style="background:#FEF2F2">📄</div>
+                <div><div class="doc-name">DOH-ICT-2025-004-RFP-Final.pdf</div><div class="doc-meta">124 pages · 4.2 MB · Parsed ✓</div></div>
+                <span class="bd bd-low">Indexed</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="sec-lbl">Vendor Proposals</div>
+            <div class="upload-zone" onclick="showToast('Drop vendor PDFs here — each is parsed and indexed automatically')">
+              <div class="uz-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#0C7B72" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg></div>
+              <div class="uz-title">Add Vendor Proposal</div>
+              <div class="uz-sub">Upload multiple PDFs at once</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch">
+            <div class="ct">Vendor Overview</div>
+            <button class="btn btn-g btn-sm" onclick="showTab('matrix',null,'tab-matrix')">View Matrix →</button>
+          </div>
+          <div class="cb">
+            <div class="vendor-rows">
+              <div class="vr" onclick="showTab('matrix',null,'tab-matrix')">
+                <div class="vdot" style="background:#6366F1"></div>
+                <div class="vname">Nexus Systems Pty Ltd</div>
+                <div class="vbar-w"><div class="vbar" style="width:92%;background:#6366F1"></div></div>
+                <div class="vscore" style="color:#6366F1">92%</div>
+                <span class="bd bd-crit">1 Critical Risk</span>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--t3)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              </div>
+              <div class="vr" onclick="showTab('matrix',null,'tab-matrix')">
+                <div class="vdot" style="background:#10B981"></div>
+                <div class="vname">TechBridge Group <span style="font-size:10px;background:#ECFDF5;color:#059669;padding:2px 7px;border-radius:100px;font-weight:700;margin-left:4px">✓ Recommended</span></div>
+                <div class="vbar-w"><div class="vbar" style="width:85%;background:#10B981"></div></div>
+                <div class="vscore" style="color:#10B981">85%</div>
+                <span class="bd bd-med">1 Medium Risk</span>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--t3)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              </div>
+              <div class="vr" onclick="showTab('matrix',null,'tab-matrix')">
+                <div class="vdot" style="background:#F59E0B"></div>
+                <div class="vname">DataCore SA</div>
+                <div class="vbar-w"><div class="vbar" style="width:71%;background:#F59E0B"></div></div>
+                <div class="vscore" style="color:#F59E0B">71%</div>
+                <span class="bd bd-high">2 Risks</span>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--t3)" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ct">Administrative Pre-screening</div><span class="bd bd-high">1 Item Missing</span></div>
+          <div class="cb" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"><div style="color:var(--full);font-weight:700;margin-bottom:3px">✓ Tax Clearance</div><div class="muted text-xs">All 3 vendors</div></div>
+            <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"><div style="color:var(--full);font-weight:700;margin-bottom:3px">✓ B-BBEE Certificate</div><div class="muted text-xs">All 3 vendors</div></div>
+            <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"><div style="color:var(--full);font-weight:700;margin-bottom:3px">✓ Insurance Proof</div><div class="muted text-xs">All 3 vendors</div></div>
+            <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"><div style="color:var(--full);font-weight:700;margin-bottom:3px">✓ CIPC Registration</div><div class="muted text-xs">All 3 vendors</div></div>
+            <div style="padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);font-size:12px"><div style="color:var(--full);font-weight:700;margin-bottom:3px">✓ VAT Registration</div><div class="muted text-xs">All 3 vendors</div></div>
+            <div style="padding:10px 12px;border:1px solid #FECACA;border-radius:var(--r);font-size:12px;background:#FEF8F8"><div style="color:var(--none);font-weight:700;margin-bottom:3px">✗ Signed Declaration</div><div style="color:var(--none);font-size:11px">DataCore SA — missing</div></div>
+          </div>
+        </div>
+        <div class="export-bar">
+          <div style="width:36px;height:36px;background:rgba(255,255,255,.2);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg></div>
+          <div class="eb-text">
+            <div class="eb-title">Export Audit Report</div>
+            <div class="eb-sub">Cover page · Compliance matrix · Risk findings · Methodology note</div>
+            <div class="export-steps" id="export-steps" style="display:none">
+              <div class="es done" id="es1"><div class="es-dot">✓</div>Scoring</div><div class="es-arr">›</div>
+              <div class="es active" id="es2"><div class="es-dot">⋯</div>Matrix</div><div class="es-arr">›</div>
+              <div class="es" id="es3"><div class="es-dot">3</div>Risks</div><div class="es-arr">›</div>
+              <div class="es" id="es4"><div class="es-dot">4</div>PDF</div>
+            </div>
+          </div>
+          <button class="btn" id="exportBarBtn" style="background:white;color:#0A5954;font-weight:700;padding:8px 18px" onclick="simulateExportDetailed()">Download Report</button>
+        </div>
+      </div>
+
+      <!-- ══ REQUIREMENTS ══ -->
+      <div class="pane" id="pane-reqs">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">Extracted Requirements</div>
+            <div class="req-filters">
+              <div class="fb on" onclick="filterReqs('all',this)">All (10)</div>
+              <div class="fb" onclick="filterReqs('Technical',this)">Technical (4)</div>
+              <div class="fb" onclick="filterReqs('Legal',this)">Legal (3)</div>
+              <div class="fb" onclick="filterReqs('Financial',this)">Financial (2)</div>
+              <div class="fb" onclick="filterReqs('Administrative',this)">Admin (1)</div>
+            </div>
+          </div>
+          <div style="overflow:auto">
+            <table class="rtable" id="req-table">
+              <thead><tr>
+                <th style="width:42px">Confirm</th>
+                <th style="width:70px">Ref</th>
+                <th>Requirement</th>
+                <th style="width:100px">Category</th>
+                <th style="width:100px">Criticality</th>
+                <!-- FEATURE 4: confidence with Review flag -->
+                <th style="width:130px">Avg Confidence</th>
+                <th style="width:80px">Actions</th>
+              </tr></thead>
+              <tbody id="req-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ COMPLIANCE MATRIX ══ -->
+      <div class="pane" id="pane-matrix">
+
+        <!-- FEATURE 1: Verdict card — moved from topbar into matrix pane -->
+        <div class="verdict-card">
+          <div class="vc-icon">
+            <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <div class="vc-body">
+            <div class="vc-label">AI Award Recommendation</div>
+            <div class="vc-title">TechBridge Group <span style="font-size:12px;font-weight:400;color:var(--t2)">— recommended for award</span></div>
+            <div class="vc-reason">While Nexus Systems scores highest at 92%, a <strong style="color:var(--none)">Critical liability cap at §12.4</strong> creates unacceptable risk under POPIA. TechBridge at 85% has no critical risks, accepts unlimited liability, and meets all mandatory requirements. DataCore SA has 3 gaps and 2 risks.</div>
+          </div>
+          <div class="vc-scores">
+            <div class="vc-score" style="cursor:pointer" onclick="showDiffModal('L1')">
+              <div class="vc-score-val" style="color:#10B981">85%</div>
+              <div class="vc-score-lbl">Compliance</div>
+            </div>
+            <div class="vc-score">
+              <div class="vc-score-val" style="color:var(--med)">1</div>
+              <div class="vc-score-lbl">Med. Risk</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;justify-content:center">
+              <button class="btn btn-p btn-sm" onclick="showDiffModal('L1')">Compare A vs B</button>
+              <button class="btn btn-g btn-sm" onclick="toggleChat();askQuestion('Which vendor is recommended and why?')">Ask AI →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- FEATURE 2: Gap summary card -->
+        <div class="card">
+          <div class="ch"><div class="ct">Gap Summary</div><span style="font-size:11px;color:var(--t3)">Derived from compliance matrix</span></div>
+          <div class="cb">
+            <div class="gap-summary">
+              <div class="gs-item" style="background:#FEF8F8;border-color:#FECACA">
+                <div class="gs-val" style="color:var(--none)">3</div>
+                <div class="gs-label" style="color:#991B1B">Mandatory requirements with <strong>no compliant vendor</strong></div>
+                <div class="gs-sub">T3, L3 and one more — require negotiation or disqualification</div>
+              </div>
+              <div class="gs-item" style="background:#FFF7ED;border-color:#FDE68A">
+                <div class="gs-val" style="color:var(--part)">2</div>
+                <div class="gs-label" style="color:#92400E">Requirements met by <strong>only 1 vendor</strong></div>
+                <div class="gs-sub">Single-source risk — creates lock-in if that vendor is disqualified</div>
+              </div>
+              <div class="gs-item" style="background:#ECFDF5;border-color:#A7D9D6">
+                <div class="gs-val" style="color:var(--full)">7</div>
+                <div class="gs-label" style="color:#065F46">Requirements where <strong>2+ vendors comply</strong></div>
+                <div class="gs-sub">Healthy competition — award can proceed on non-compliance criteria</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--t3);font-weight:500">Show:</div>
+          <div class="req-filters">
+            <div class="fb on" onclick="filterMatrix('all',this)">All</div>
+            <div class="fb" onclick="filterMatrix('NONE',this)">Gaps only</div>
+            <div class="fb" onclick="filterMatrix('PARTIAL',this)">Partial only</div>
+            <div class="fb" onclick="filterMatrix('Mandatory',this)">Mandatory only</div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--t2)">
+            Hover for evidence · Click to trace · <span style="cursor:pointer;color:var(--ac)" onclick="showDiffModal('L1')">Compare 2 vendors →</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="sec-lbl" style="margin:0">Legend:</div>
+          <span class="chip chip-full">Full</span><span class="chip chip-part">Partial</span>
+          <span class="chip chip-none">None</span><span class="chip chip-ambg">Ambiguous</span>
+        </div>
+        <div class="matrix-wrap">
+          <table class="mx" id="mx-table">
+            <thead><tr>
+              <th class="req-col">Requirement</th>
+              <th class="v-col"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="background:#6366F1;width:8px;height:8px;border-radius:50%"></div>Nexus Systems</div><div style="font-size:12px;font-weight:700;color:#6366F1;margin-top:2px;font-family:var(--fm)">92%</div></th>
+              <th class="v-col"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="background:#10B981;width:8px;height:8px;border-radius:50%"></div>TechBridge</div><div style="font-size:12px;font-weight:700;color:#10B981;margin-top:2px;font-family:var(--fm)">85%</div></th>
+              <th class="v-col"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="background:#F59E0B;width:8px;height:8px;border-radius:50%"></div>DataCore SA</div><div style="font-size:12px;font-weight:700;color:#F59E0B;margin-top:2px;font-family:var(--fm)">71%</div></th>
+            </tr></thead>
+            <tbody id="mx-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ RISK HEATMAP ══ -->
+      <div class="pane" id="pane-heatmap">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">Risk Heatmap</div>
+            <div class="legend">
+              <div class="leg-item"><div class="leg-swatch" style="background:#FECACA"></div>Critical</div>
+              <div class="leg-item"><div class="leg-swatch" style="background:#FED7AA"></div>High</div>
+              <div class="leg-item"><div class="leg-swatch" style="background:#FEF08A"></div>Medium</div>
+              <div class="leg-item"><div class="leg-swatch" style="background:#BBF7D0"></div>Low</div>
+            </div>
+          </div>
+          <div class="hm-wrap" style="margin:16px;border-radius:var(--r)">
+            <table class="hm-tbl">
+              <thead><tr>
+                <th>Vendor</th><th>Liability Cap</th><th>Price / Scope</th><th>Obligation</th><th>IP / Data</th><th>Exit</th>
+              </tr></thead>
+              <tbody>
+                <tr>
+                  <td><div class="hm-vendor"><div style="width:10px;height:10px;border-radius:50%;background:#6366F1;flex-shrink:0"></div>Nexus Systems</div></td>
+                  <td class="hm-cell hm-crit" onclick="openRiskDrawer('Nexus Systems','Critical','Limited Liability Cap','§12.4, Page 71','Vendor caps liability at 12 months of fees (~R3.6M), contradicting unlimited liability in RFP Clause 7.1.0. Potential POPIA breach exposure exceeds R50M.','Remove §12.4 entirely or renegotiate to unlimited liability before award.')"><div class="hm-cnt">1</div><div class="hm-lbl">Critical</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                  <td class="hm-cell hm-low" onclick="openRiskDrawer('Nexus Systems','Low','IP Ownership Ambiguity','§11.3, Page 67','Minor ambiguity around pre-existing vendor IP within deliverables.','Clarify IP schedule in Annexure A before contract signing.')"><div class="hm-cnt">1</div><div class="hm-lbl">Low</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                </tr>
+                <tr>
+                  <td><div class="hm-vendor"><div style="width:10px;height:10px;border-radius:50%;background:#10B981;flex-shrink:0"></div>TechBridge Group</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                  <td class="hm-cell hm-med" onclick="openRiskDrawer('TechBridge Group','Medium','Subject to Resource Availability','§7.3, Page 29','Delivery conditioned on internal resource availability, undermining guaranteed response times at RFP §4.6.2.','Remove resource availability caveat or add SLA penalty clause.')"><div class="hm-cnt">1</div><div class="hm-lbl">Medium</div></td>
+                  <td class="hm-cell hm-low"><div class="hm-cnt">1</div><div class="hm-lbl">Low</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                </tr>
+                <tr>
+                  <td><div class="hm-vendor"><div style="width:10px;height:10px;border-radius:50%;background:#F59E0B;flex-shrink:0"></div>DataCore SA</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                  <td class="hm-cell hm-high" onclick="openRiskDrawer('DataCore SA','High','CPI Escalation Year 3','§15.1, Page 83','Year 3 pricing subject to CPI adjustment (up to 6%), contradicting fixed-price requirement at RFP Clause 9.1.','Remove CPI clause or cap at 0%. This is a mandatory requirement.')"><div class="hm-cnt">1</div><div class="hm-lbl">High</div></td>
+                  <td class="hm-cell hm-med" onclick="openRiskDrawer('DataCore SA','Medium','Best Endeavours Backup SLA','§6.2, Page 38','\"Best endeavours\" weakens binding 4-hour backup obligation in RFP Clause 4.3.5.','Replace with \"shall\" and hard SLA commitment with penalty clause.')"><div class="hm-cnt">1</div><div class="hm-lbl">Medium</div></td>
+                  <td class="hm-cell hm-high"><div class="hm-cnt">1</div><div class="hm-lbl">High</div></td>
+                  <td class="hm-cell hm-nil"><div class="hm-cnt" style="color:var(--t3)">—</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- FEATURE 6: Vendor risk timeline -->
+        <div class="card">
+          <div class="ch"><div class="ct">Risk Clause Timeline</div><span style="font-size:11px;color:var(--t3)">Position of risk flags across proposal pages — clusters signal buried terms</span></div>
+          <div class="cb" id="risk-timeline-container"></div>
+        </div>
+
+        <div class="card">
+          <div class="ch"><div class="ct">All Risk Findings</div><span class="bd bd-crit">3 Critical / High</span></div>
+          <div class="cb"><div class="risk-list" id="risk-list"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ DEEP DIVE ══ -->
+      <div class="pane" id="pane-deepdive">
+        <div class="card">
+          <div class="ch">
+            <div class="ct">Traceability Inspector</div>
+            <div class="dd-selector">
+              <select class="req-select" id="dd-req" onchange="updateDeepDive()">
+                <option value="L1">L1 — Unlimited liability for data breach</option>
+                <option value="T1">T1 — 99.9% system uptime SLA</option>
+                <option value="T3">T3 — Data backup within 4 hours</option>
+                <option value="L3">L3 — IP ownership remains with DoH</option>
+                <option value="F1">F1 — Fixed price for 36 months</option>
+              </select>
+              <div class="vendor-btns">
+                <div class="vbtn on" onclick="selectVendor('Nexus',this)">Nexus</div>
+                <div class="vbtn" onclick="selectVendor('TechBridge',this)">TechBridge</div>
+                <div class="vbtn" onclick="selectVendor('DataCore',this)">DataCore</div>
+              </div>
+              <button class="btn btn-g btn-sm" onclick="showDiffModal(activeReqDD)">Compare 2 Vendors</button>
+            </div>
+          </div>
+        </div>
+        <div class="dd-grid" id="dd-grid"></div>
+      </div>
+
+    </div><!-- /scr -->
+
+    <!-- Chat -->
+    <div class="rp closed" id="right-panel">
+      <div class="rp-head">
+        <div style="width:28px;height:28px;background:var(--ac);border-radius:7px;display:flex;align-items:center;justify-content:center"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg></div>
+        <div class="rp-title">AI Assistant</div>
+        <div class="btn btn-icon btn-g" onclick="toggleChat()"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></div>
+      </div>
+      <div class="chat-msgs" id="chat-msgs">
+        <div class="msg msg-ai">
+          <div class="msg-lbl">TenderAI</div>
+          <div class="bubble">I've analysed all 3 vendor proposals against the RFP. Ask me anything about compliance, risks, or specific clauses.</div>
+          <div class="chat-pill mt1">
+            <div class="pill" onclick="askQuestion('What are the top risks for Nexus Systems?')">Top risks for Nexus Systems?</div>
+            <div class="pill" onclick="askQuestion('Which vendor is recommended and why?')">Which vendor is recommended?</div>
+            <div class="pill" onclick="askQuestion('Where is the limited liability clause in Nexus proposal?')">Where is the liability clause?</div>
+          </div>
+        </div>
+      </div>
+      <div class="ci">
+        <input class="ci-input" id="chat-input" placeholder="Ask about compliance, risks, vendors…" onkeydown="if(event.key==='Enter') sendChat()">
+        <button class="btn btn-p btn-sm" onclick="sendChat()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg></button>
+      </div>
+    </div>
+
+  </div><!-- /cr -->
+</div><!-- /main -->
+
+<!-- Risk drawer -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="risk-drawer" id="riskDrawer">
+  <div class="rd-head">
+    <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin-bottom:4px">Risk Detail</div><div style="font-size:14px;font-weight:600" id="rd-title">Risk Title</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><span id="rd-severity-badge" class="bd">Sev</span><div class="btn btn-icon btn-g" onclick="closeDrawer()"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></div></div>
+  </div>
+  <div class="rd-body">
+    <div class="rd-field"><div class="rd-field-label">Vendor</div><div class="rd-field-val" id="rd-vendor"></div></div>
+    <div class="rd-field"><div class="rd-field-label">Source Location</div><div class="rd-field-val" id="rd-source" style="font-family:var(--fm);font-size:12px"></div></div>
+    <div class="rd-field"><div class="rd-field-label">Risk Analysis</div><div class="rd-field-val" id="rd-analysis"></div></div>
+    <div class="rd-field"><div class="rd-field-label">Recommended Action</div><div class="rd-field-val" id="rd-action" style="background:#ECFDF5;border-color:#A7D9D6;color:#065F46"></div></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-g" style="flex:1" onclick="closeDrawer();showTab('deepdive',document.querySelectorAll('.ni')[4],'tab-deepdive')">Open in Trace →</button>
+      <button class="btn btn-p" style="flex:1" onclick="toggleChat();closeDrawer()">Ask AI</button>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURE 7: Comparison diff modal -->
+<div class="diff-modal" id="diffModal">
+  <div class="diff-overlay" onclick="closeDiffModal()"></div>
+  <div class="diff-panel">
+    <div class="diff-head">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:3px">Vendor Comparison</div>
+        <div style="font-size:14px;font-weight:600" id="diff-req-title">L1 — Unlimited liability for data breach</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:6px" id="diff-vendor-btns">
+          <div class="vbtn on" onclick="setDiffVendors('Nexus Systems','TechBridge Group',this)">Nexus vs TechBridge</div>
+          <div class="vbtn" onclick="setDiffVendors('Nexus Systems','DataCore SA',this)">Nexus vs DataCore</div>
+          <div class="vbtn" onclick="setDiffVendors('TechBridge Group','DataCore SA',this)">TechBridge vs DataCore</div>
+        </div>
+        <div class="btn btn-icon btn-g" onclick="closeDiffModal()"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></div>
+      </div>
+    </div>
+    <div class="diff-body" id="diff-body"></div>
+    <div class="diff-foot">
+      <button class="btn btn-g" onclick="closeDiffModal()">Close</button>
+      <button class="btn btn-p" onclick="closeDiffModal();showTab('deepdive',document.querySelectorAll('.ni')[4],'tab-deepdive')">Open in Deep Dive</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export modal -->
+<div class="diff-modal" id="exportModal">
+  <div class="diff-overlay" onclick="closeExportModal()"></div>
+  <div class="diff-panel" style="width:min(480px,90vw);max-height:auto">
+    <div class="diff-head" style="border-bottom:none;padding-bottom:0">
+      <div><div style="font-size:14px;font-weight:600">Generating Audit Report</div><div style="font-size:12px;color:var(--t2);margin-top:3px">Professional PDF with compliance matrix and risk findings</div></div>
+    </div>
+    <div style="padding:20px 24px">
+      <div id="export-modal-steps" style="display:flex;flex-direction:column;gap:12px">
+        <div class="em-step" id="ems1" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div class="em-dot" style="width:20px;height:20px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">1</div>
+          <div style="flex:1;font-size:13px">Scoring vendor compliance…</div>
+          <span class="em-status" style="font-size:11px;color:var(--t3)">Waiting</span>
+        </div>
+        <div class="em-step" id="ems2" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div class="em-dot" style="width:20px;height:20px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">2</div>
+          <div style="flex:1;font-size:13px">Building compliance matrix table…</div>
+          <span class="em-status" style="font-size:11px;color:var(--t3)">Waiting</span>
+        </div>
+        <div class="em-step" id="ems3" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div class="em-dot" style="width:20px;height:20px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">3</div>
+          <div style="flex:1;font-size:13px">Adding risk findings and analysis…</div>
+          <span class="em-status" style="font-size:11px;color:var(--t3)">Waiting</span>
+        </div>
+        <div class="em-step" id="ems4" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+          <div class="em-dot" style="width:20px;height:20px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">4</div>
+          <div style="flex:1;font-size:13px">Finalising PDF — 8 pages…</div>
+          <span class="em-status" style="font-size:11px;color:var(--t3)">Waiting</span>
+        </div>
+      </div>
+      <div id="export-done" style="display:none;text-align:center;padding:16px 0">
+        <div style="font-size:28px;margin-bottom:8px">✅</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Report Ready</div>
+        <div style="font-size:12px;color:var(--t2)">DOH-ICT-2025-004_Audit_Report.pdf — 8 pages</div>
+        <a href="data:application/pdf;base64,JVBERi0xLjQKJ" download="DOH-ICT-2025-004_Audit_Report.pdf" class="btn btn-p" style="margin:14px auto 0;display:inline-flex" id="dl-link">Download PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="override-toast" id="overrideToast">
+  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#10B981" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span id="toast-msg">Done</span>
+  <span style="color:rgba(255,255,255,.4);cursor:pointer" onclick="hideToast()">✕</span>
+</div>
+
+<script>
+/* ═══ DATA ═══ */
+const VENDORS = ['Nexus Systems','TechBridge Group','DataCore SA'];
+const VCOLORS = {'Nexus Systems':'#6366F1','TechBridge Group':'#10B981','DataCore SA':'#F59E0B'};
+
+const REQS = [
+  {id:'T1',cat:'Technical',crit:'Mandatory',ref:'4.1.2',normalised:'Vendor must guarantee 99.9% system availability at all times.'},
+  {id:'T2',cat:'Technical',crit:'Mandatory',ref:'4.2.1',normalised:'Vendor must hold current ISO 27001 information security certification.'},
+  {id:'T3',cat:'Technical',crit:'Mandatory',ref:'4.3.5',normalised:'Vendor must complete full data backup within 4 hours of any incident.'},
+  {id:'T4',cat:'Technical',crit:'Recommended',ref:'4.5.1',normalised:'Vendor should implement multi-factor authentication for all user access.'},
+  {id:'L1',cat:'Legal',crit:'Mandatory',ref:'7.1.0',normalised:'Vendor accepts unlimited financial liability in the event of a data breach.'},
+  {id:'L2',cat:'Legal',crit:'Mandatory',ref:'7.3.2',normalised:'Either party must provide 90 days written notice before contract termination.'},
+  {id:'L3',cat:'Legal',crit:'Mandatory',ref:'7.5.1',normalised:'All intellectual property developed during the contract remains property of the Department.'},
+  {id:'F1',cat:'Financial',crit:'Mandatory',ref:'9.1.0',normalised:'Vendor must guarantee fixed pricing for the full 36-month contract term.'},
+  {id:'F2',cat:'Financial',crit:'Recommended',ref:'9.4.1',normalised:'Department will remit payment within 30 days of a compliant invoice.'},
+  {id:'A1',cat:'Administrative',crit:'Mandatory',ref:'2.1.3',normalised:'Vendor must hold a current B-BBEE contributor status of Level 2 or better.'},
+];
+
+const MATRIX = {
+  'T1':{'Nexus Systems':{s:'FULL',c:.94,ev:'We commit to a 99.9% uptime SLA, backed by our 24/7 NOC.',sec:'§3.2 p.18'},
+        'TechBridge Group':{s:'FULL',c:.89,ev:'TechBridge guarantees 99.9% system availability per Annexure B.',sec:'Annex B p.42'},
+        'DataCore SA':{s:'PARTIAL',c:.68,ev:'We aim to maintain 99.5% uptime and will endeavour to achieve higher targets.',sec:'§4.1 p.23'}},
+  'T2':{'Nexus Systems':{s:'FULL',c:.97,ev:'ISO 27001:2022 certification enclosed as Appendix 3. Valid until March 2026.',sec:'App.3 p.88'},
+        'TechBridge Group':{s:'AMBIGUOUS',c:.52,ev:'TechBridge is currently undergoing ISO 27001 certification, expected Q2 2025.',sec:'§2.4 p.12'},
+        'DataCore SA':{s:'FULL',c:.91,ev:'Current ISO 27001 certificate attached. Renewed annually.',sec:'App.2 p.67'}},
+  'T3':{'Nexus Systems':{s:'FULL',c:.88,ev:'Nexus guarantees RPO of 2 hours and backup within 4 hours.',sec:'§5.1 p.31'},
+        'TechBridge Group':{s:'PARTIAL',c:.63,ev:'Our backup policy targets 6-hour recovery windows, reviewed quarterly.',sec:'§3.8 p.29'},
+        'DataCore SA':{s:'NONE',c:.08,ev:null,sec:null}},
+  'T4':{'Nexus Systems':{s:'FULL',c:.92,ev:'MFA standard across all platforms using TOTP and hardware tokens.',sec:'§4.2 p.25'},
+        'TechBridge Group':{s:'FULL',c:.87,ev:'All access points enforce MFA per our security policy.',sec:'§2.9 p.17'},
+        'DataCore SA':{s:'PARTIAL',c:.68,ev:'MFA available on request. Standard deployment uses SSO.',sec:'§3.3 p.19'}},
+  'L1':{'Nexus Systems':{s:'PARTIAL',c:.45,ev:'Nexus liability is limited to the total contract value paid in the preceding 12 months.',sec:'§12.4 p.71'},
+        'TechBridge Group':{s:'FULL',c:.91,ev:'TechBridge accepts unlimited liability for data breaches arising from our negligence or wilful misconduct.',sec:'§9.1 p.55'},
+        'DataCore SA':{s:'FULL',c:.93,ev:'DataCore SA agrees to unlimited liability provisions for any confirmed data breach events.',sec:'§11.2 p.64'}},
+  'L2':{'Nexus Systems':{s:'FULL',c:.96,ev:'90 days written notice required for termination per Clause 14.1.',sec:'§14.1 p.77'},
+        'TechBridge Group':{s:'PARTIAL',c:.59,ev:'60-day termination notice is our standard. We can negotiate 90 days on request.',sec:'§10.3 p.58'},
+        'DataCore SA':{s:'FULL',c:.88,ev:'DataCore agrees to a 90-day written termination notice period.',sec:'§13.0 p.71'}},
+  'L3':{'Nexus Systems':{s:'FULL',c:.93,ev:'All deliverables and code vest in the Department under this contract.',sec:'§11.1 p.65'},
+        'TechBridge Group':{s:'FULL',c:.86,ev:'IP developed for the Department remains its property.',sec:'§8.5 p.51'},
+        'DataCore SA':{s:'NONE',c:.15,ev:null,sec:null}},
+  'F1':{'Nexus Systems':{s:'FULL',c:.94,ev:'Pricing fixed for the 36-month period. No CPI adjustments.',sec:'§16.0 p.89'},
+        'TechBridge Group':{s:'FULL',c:.90,ev:'TechBridge commits to fixed pricing for the full contract term.',sec:'§13.2 p.74'},
+        'DataCore SA':{s:'PARTIAL',c:.72,ev:'Pricing fixed for Year 1 and 2. Year 3 subject to CPI adjustment capped at 6%.',sec:'§15.1 p.83'}},
+  'F2':{'Nexus Systems':{s:'FULL',c:.89,ev:'Nexus agrees to 30-day payment terms from date of compliant invoice.',sec:'§17.2 p.94'},
+        'TechBridge Group':{s:'PARTIAL',c:.66,ev:'Standard 45 days. We accept 30 days for public sector clients.',sec:'§14.0 p.79'},
+        'DataCore SA':{s:'FULL',c:.84,ev:'DataCore accepts 30-day payment terms per government guidelines.',sec:'§16.3 p.89'}},
+  'A1':{'Nexus Systems':{s:'FULL',c:.99,ev:'B-BBEE Level 1 contributor. Certificate attached.',sec:'App.1 p.86'},
+        'TechBridge Group':{s:'FULL',c:.97,ev:'B-BBEE Level 2 contributor status confirmed.',sec:'App.1 p.91'},
+        'DataCore SA':{s:'FULL',c:.98,ev:'B-BBEE Level 2. Certificate valid until December 2025.',sec:'App.1 p.94'}},
+};
+
+const RISKS = [
+  {vendor:'Nexus Systems',phrase:'shall not exceed the total fees paid',sev:'Critical',type:'Liability Cap',impact:'Caps Nexus liability at ~R3.6M (12 months fees), exposing DoH to uncapped losses. POPIA breach exposure could exceed R50M.',page:71,color:VCOLORS['Nexus Systems']},
+  {vendor:'DataCore SA',phrase:'subject to CPI adjustment',sev:'High',type:'Price Risk',impact:'Year 3 price escalation up to 6% contradicts fixed-price requirement at Clause 9.1.',page:83,color:VCOLORS['DataCore SA']},
+  {vendor:'DataCore SA',phrase:'best endeavours only',sev:'Medium',type:'Obligation Weakening',impact:'"Best endeavours" in backup SLA weakens the mandatory 4-hour recovery obligation.',page:38,color:VCOLORS['DataCore SA']},
+  {vendor:'TechBridge Group',phrase:'subject to resource availability',sev:'Medium',type:'Scope Creep',impact:'Conditions timelines on internal resources, undermining guaranteed response times.',page:29,color:VCOLORS['TechBridge Group']},
+];
+
+/* Deep dive doc viewer content */
+const DEEP_DIVE = {
+  'L1':{
+    rfpClause:`<strong>Clause 7.1.0 — Liability for Data Breaches</strong><br><br>The Vendor shall accept <span class="hl-rfp">unlimited financial liability</span> for any data breach, loss of data, or unauthorised access to personal information held on behalf of the Department, including but not limited to costs of notification, regulatory fines, legal proceedings, remediation, and reputational damage suffered by the Department or its beneficiaries.<br><br>This obligation shall survive termination of the contract for a period of five (5) years.`,
+    rfpRef:'Clause 7.1.0, Page 44',
+    rfpPage:44,
+    vendors:{
+      'Nexus Systems':{status:'PARTIAL',conf:.45,
+        docViewer:`<div class="doc-viewer-head">Nexus Systems Proposal · Page 71 of 94 · §12.4 Limitation of Liability</div><div class="doc-text">...In consideration of the fees payable under this Agreement, the parties agree that Nexus Systems shall use commercially reasonable efforts to deliver the Services described herein. <strong style="color:var(--t2)">12.4 Limitation of Liability.</strong> Notwithstanding anything to the contrary in this Agreement, the total aggregate liability of <span class="hl-miss">Nexus Systems under or in connection with this Agreement, whether in contract, tort (including negligence) or otherwise, shall not exceed the total fees paid by the Client in the twelve (12) months preceding the claim</span>. This limitation applies to all claims in aggregate, including any claim for loss of data, breach of confidentiality, or regulatory fines. Neither party shall be liable for any indirect, consequential or punitive damages...</div><div class="doc-page-num">Page 71 / 94</div>`,
+        evidence:`<div class="miss-banner"><strong>⚠ Critical Gap</strong><br>Liability cap at §12.4 directly contradicts RFP Clause 7.1.0's unlimited liability requirement.</div>`,
+        sec:'§12.4 p.71',
+        ai:'Nexus Systems has inserted a liability cap limiting their exposure to ~R3.6M. This directly contradicts the RFP\'s unlimited liability mandate. A POPIA breach at this scale could cost R50M+ in fines, notification costs and remediation. This clause must be removed before award.',
+        auditLog:[
+          {time:'14:32',dot:'#6366F1',text:'AI extracted requirement L1 from RFP §7.1.0 with confidence 94%'},
+          {time:'14:45',dot:'var(--ac)',text:'User <strong>confirmed</strong> requirement during review'},
+          {time:'15:12',dot:'#6366F1',text:'AI retrieved evidence from §12.4 (reranker score: 4.85) — classified PARTIAL, conf 45%'},
+          {time:'15:13',dot:'var(--ac)',text:'Negative space detection: 19/23 requirements scored below threshold — marked NONE without LLM call',human:true},
+        ]
+      },
+      'TechBridge Group':{status:'FULL',conf:.91,
+        docViewer:`<div class="doc-viewer-head">TechBridge Group Proposal · Page 55 of 88 · §9.1 Liability</div><div class="doc-text">...TechBridge Group is committed to the highest standards of data governance and security. <strong style="color:var(--t2)">9.1 Unlimited Liability for Data Breaches.</strong> TechBridge Group accepts <span class="hl-ev">unlimited liability for any data breach, loss, or unauthorised access to personal information arising from our negligence, wilful misconduct, or failure to comply with our security obligations under this Agreement</span>. We carry Cyber Liability insurance of R100M per incident (policy attached in Appendix 4) to provide financial backing to this commitment. This obligation shall survive termination...</div><div class="doc-page-num">Page 55 / 88</div>`,
+        evidence:'',
+        sec:'§9.1 p.55',
+        ai:'TechBridge fully satisfies this requirement. The language matches the RFP mandate closely. The R100M cyber insurance policy provides practical financial backing. Confidence 91%.',
+        auditLog:[
+          {time:'14:32',dot:'#6366F1',text:'AI extracted requirement L1 from RFP §7.1.0'},
+          {time:'15:14',dot:'#10B981',text:'AI retrieved evidence from §9.1 (reranker score: 3.21) — classified FULL, conf 91%'},
+          {time:'15:16',dot:'var(--ac)',text:'User <strong>accepted</strong> AI assessment',human:true},
+        ]
+      },
+      'DataCore SA':{status:'FULL',conf:.93,
+        docViewer:`<div class="doc-viewer-head">DataCore SA Proposal · Page 64 of 97 · §11.2 Liability for Data Breaches</div><div class="doc-text">...<strong style="color:var(--t2)">11.2 Unlimited Liability.</strong> DataCore SA agrees without reservation to accept <span class="hl-ev">unlimited liability provisions for any confirmed data breach events</span> as defined in the Protection of Personal Information Act (POPIA) and as required by the Department's RFP Clause 7.1.0. Our professional indemnity and cyber liability coverage totals R75M per annum (details in Annexure E)...</div><div class="doc-page-num">Page 64 / 97</div>`,
+        evidence:'',
+        sec:'§11.2 p.64',
+        ai:'DataCore SA satisfies this requirement with clear language directly referencing the RFP clause. POPIA citation adds legal precision. Confidence 93%.',
+        auditLog:[
+          {time:'14:32',dot:'#6366F1',text:'AI extracted requirement L1'},
+          {time:'15:15',dot:'#F59E0B',text:'AI retrieved evidence from §11.2 (reranker score: 3.89) — classified FULL, conf 93%'},
+        ]
+      }
+    }
+  },
+  'T1':{
+    rfpClause:`<strong>Clause 4.1.2 — System Availability SLA</strong><br><br>The Vendor shall guarantee <span class="hl-rfp">a minimum system availability of 99.9%</span> measured on a monthly basis, excluding scheduled maintenance windows pre-approved in writing by the Department. Downtime exceeding this threshold shall attract service credits of 5% of monthly fees per hour of excess downtime, up to a maximum of 50% per month.`,
+    rfpRef:'Clause 4.1.2, Page 28',rfpPage:28,
+    vendors:{
+      'Nexus Systems':{status:'FULL',conf:.94,docViewer:`<div class="doc-viewer-head">Nexus Systems Proposal · Page 18 of 94 · §3.2 Service Level Agreement</div><div class="doc-text">Nexus Systems commits to a <span class="hl-ev">99.9% monthly uptime SLA</span>, backed by our 24/7 Network Operations Centre (NOC). Infrastructure is deployed across two geographically separated data centres with automatic failover within 90 seconds. Service credits per the RFP schedule shall apply.</div><div class="doc-page-num">Page 18 / 94</div>`,evidence:'',sec:'§3.2 p.18',ai:'Nexus fully satisfies the uptime requirement. 99.9% is explicitly stated, dual-DC failover is credible, service credits accepted. Confidence 94%.',auditLog:[{time:'14:35',dot:'#6366F1',text:'AI classified FULL, conf 94%'}]},
+      'TechBridge Group':{status:'FULL',conf:.89,docViewer:`<div class="doc-viewer-head">TechBridge Group · Annexure B · Page 42 of 88 · SLA Commitments</div><div class="doc-text">TechBridge guarantees <span class="hl-ev">99.9% system availability</span> per Annexure B. Platform hosted on AWS eu-west-1 with automatic regional failover. Service credit regime accepted without modification.</div><div class="doc-page-num">Page 42 / 88</div>`,evidence:'',sec:'Annex B p.42',ai:'TechBridge satisfies uptime. Clear commitment, AWS with regional failover. Confidence 89%.',auditLog:[{time:'14:35',dot:'#10B981',text:'AI classified FULL, conf 89%'}]},
+      'DataCore SA':{status:'PARTIAL',conf:.68,docViewer:`<div class="doc-viewer-head">DataCore SA Proposal · Page 23 of 97 · §4.1 Availability</div><div class="doc-text">DataCore SA commits to maintaining <span class="hl-ev">99.5% monthly system availability</span> as our standard tier. We will endeavour to achieve 99.9% and will report monthly on actual performance.</div><div class="doc-page-num">Page 23 / 97</div>`,evidence:'',sec:'§4.1 p.23',ai:'DataCore commits to only 99.5% — below the mandatory 99.9%. "Endeavour to achieve" is not a contractual guarantee. Partial compliance failure.',auditLog:[{time:'14:35',dot:'#F59E0B',text:'AI classified PARTIAL, conf 68%'},{time:'14:40',dot:'var(--ac)',text:'User <strong>accepted</strong> assessment',human:true}]}
+    }
+  }
+};
+
+let activeReqFilter='all', mxFilter='all', activeVendor='Nexus Systems', activeReqDD='L1', chatOpen=false;
+let diffReqId='L1', diffV1='Nexus Systems', diffV2='TechBridge Group';
+
+/* ─── NAV ─── */
+function showTab(id,navEl,tabId){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pane-'+id).classList.add('on');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const tel=document.getElementById(tabId||'tab-'+id);
+  if(tel)tel.classList.add('on');
+  if(navEl){document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));navEl.classList.add('on');}
+  if(id==='deepdive')updateDeepDive();
+}
+
+/* ─── REQUIREMENTS ─── */
+function catClass(cat){return{Technical:'bd-tech',Legal:'bd-leg',Financial:'bd-fin',Administrative:'bd-adm'}[cat]||'';}
+function confColor(c){return c>=.8?'var(--full)':c>=.6?'var(--part)':'var(--none)';}
+
+function renderReqs(){
+  const tbody=document.getElementById('req-tbody');
+  const groups=['Technical','Legal','Financial','Administrative'];
+  let html='';
+  groups.forEach(g=>{
+    const rows=REQS.filter(r=>r.cat===g&&(activeReqFilter==='all'||r.cat===activeReqFilter));
+    if(!rows.length)return;
+    html+=`<tr class="group-hdr"><td colspan="7"><div class="grp-lbl">${g}</div></td></tr>`;
+    rows.forEach(r=>{
+      const avgConf=VENDORS.reduce((s,v)=>s+(MATRIX[r.id]?.[v]?.c||0),0)/3;
+      const needsReview=avgConf<0.6;
+      html+=`<tr>
+        <td><div style="display:flex;justify-content:center"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div></td>
+        <td><span class="mono text-xs" style="color:var(--t2)">${r.ref}</span></td>
+        <td>
+          <div style="font-size:13px;font-weight:500;margin-bottom:2px">${r.normalised}</div>
+          <div class="mono text-xs" style="color:var(--t3)">${r.id}</div>
+        </td>
+        <td><span class="bd ${catClass(r.cat)}">${r.cat}</span></td>
+        <td><span class="bd ${r.crit==='Mandatory'?'bd-mand':'bd-rec'}">${r.crit}</span></td>
+        <td>
+          <div class="conf-row">
+            <div style="width:8px;height:8px;border-radius:50%;background:${confColor(avgConf)};flex-shrink:0"></div>
+            <div class="conf-bar"><div class="conf-fill" style="width:${Math.round(avgConf*100)}%;background:${confColor(avgConf)}"></div></div>
+            <span class="mono text-xs" style="color:${confColor(avgConf)}">${Math.round(avgConf*100)}%</span>
+            ${needsReview?`<span class="review-flag">⚑ Review</span>`:''}
+          </div>
+        </td>
+        <td><button class="btn btn-g btn-sm" onclick="goDeepDive('${r.id}')">Trace</button></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
+}
+
+function filterReqs(cat,el){
+  activeReqFilter=cat;
+  document.querySelectorAll('.fb').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderReqs();
+}
+
+function goDeepDive(id){
+  activeReqDD=id;
+  showTab('deepdive',document.querySelectorAll('.ni')[4],'tab-deepdive');
+  document.getElementById('dd-req').value=id;
+  updateDeepDive();
+}
+
+/* ─── MATRIX ─── */
+function statusChip(s){
+  const m={FULL:'chip-full',PARTIAL:'chip-part',NONE:'chip-none',AMBIGUOUS:'chip-ambg'};
+  const l={FULL:'Full',PARTIAL:'Partial',NONE:'None',AMBIGUOUS:'Ambig'};
+  return`<span class="chip ${m[s]||''}">${l[s]||s}</span>`;
+}
+
+function filterMatrix(filter,el){
+  mxFilter=filter;
+  document.querySelectorAll('#pane-matrix .fb').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderMatrix();
+}
+
+function renderMatrix(){
+  const tbody=document.getElementById('mx-tbody');
+  const groups=['Technical','Legal','Financial','Administrative'];
+  let html='';
+  groups.forEach(g=>{
+    let rows=REQS.filter(r=>r.cat===g);
+    if(mxFilter==='NONE')rows=rows.filter(r=>VENDORS.some(v=>MATRIX[r.id]?.[v]?.s==='NONE'));
+    else if(mxFilter==='PARTIAL')rows=rows.filter(r=>VENDORS.some(v=>MATRIX[r.id]?.[v]?.s==='PARTIAL'));
+    else if(mxFilter==='Mandatory')rows=rows.filter(r=>r.crit==='Mandatory');
+    if(!rows.length)return;
+    html+=`<tr class="mx grp-hdr"><td colspan="4" style="background:#F5F4F0;padding:5px 16px"><div class="grp-lbl">${g}</div></td></tr>`;
+    rows.forEach(r=>{
+      html+=`<tr>
+        <td class="req-col-td">
+          <div class="req-txt">${r.normalised}</div>
+          <div class="req-meta">
+            <span class="bd ${catClass(r.cat)} text-xs">${r.id}</span>
+            <span class="mono" style="font-size:10px;color:var(--t3)">§${r.ref}</span>
+            <span class="bd ${r.crit==='Mandatory'?'bd-mand':'bd-rec'} text-xs">${r.crit}</span>
+          </div>
+        </td>
+        ${VENDORS.map(v=>{
+          const m=MATRIX[r.id]?.[v];
+          if(!m)return`<td class="vc-td is-none tip"><span class="chip chip-none">None</span><div class="tip-box"><div style="font-weight:600;margin-bottom:4px">${v}</div><div>No evidence found for this requirement.</div><div class="tip-conf">Confidence: 0% · Click to trace</div></div></td>`;
+          const isNone=m.s==='NONE';
+          const evText=m.ev?m.ev.substring(0,85)+'…':'No evidence found.';
+          return`<td class="vc-td ${isNone?'is-none':''} tip" onclick="goDeepDive('${r.id}')">
+            ${statusChip(m.s)}
+            <div class="conf-row" style="justify-content:center;margin-top:4px">
+              <div style="width:7px;height:7px;border-radius:50%;background:${confColor(m.c)};flex-shrink:0"></div>
+              <div class="conf-bar"><div class="conf-fill" style="width:${Math.round(m.c*100)}%;background:${confColor(m.c)}"></div></div>
+              <span class="mono text-xs" style="color:${confColor(m.c)}">${Math.round(m.c*100)}%</span>
+            </div>
+            <div class="tip-box">
+              <div style="font-weight:600;margin-bottom:4px">${v}</div>
+              <div>${evText}</div>
+              ${m.sec?`<div class="tip-sect">📎 ${m.sec}</div>`:''}
+              <div class="tip-conf">Confidence: ${Math.round(m.c*100)}% · Click to trace</div>
+            </div>
+          </td>`;
+        }).join('')}
+      </tr>`;
+    });
+  });
+  tbody.innerHTML=html;
+}
+
+/* ─── RISK DRAWER ─── */
+function openRiskDrawer(vendor,sev,title,source,analysis,action){
+  document.getElementById('rd-title').textContent=title;
+  document.getElementById('rd-vendor').textContent=vendor;
+  document.getElementById('rd-source').textContent=source;
+  document.getElementById('rd-analysis').textContent=analysis;
+  document.getElementById('rd-action').textContent=action;
+  const sevMap={Critical:'bd-crit',High:'bd-high',Medium:'bd-med',Low:'bd-low'};
+  const badge=document.getElementById('rd-severity-badge');
+  badge.className='bd '+(sevMap[sev]||'');
+  badge.textContent=sev;
+  document.getElementById('riskDrawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+function closeDrawer(){
+  document.getElementById('riskDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+/* ─── RISK LIST ─── */
+function renderRisks(){
+  const sevClass={Critical:'bd-crit',High:'bd-high',Medium:'bd-med',Low:'bd-low'};
+  const sevBg={Critical:'#FEF2F2',High:'#FFF4ED',Medium:'#FEFCE8',Low:'#F0FDF4'};
+  document.getElementById('risk-list').innerHTML=RISKS.map(r=>`
+    <div class="risk-row">
+      <div class="risk-sev" style="background:${sevBg[r.sev]||'#F4F4F5'}"><span class="bd ${sevClass[r.sev]||''}" style="padding:0;background:transparent">${r.sev[0]}</span></div>
+      <div class="risk-info">
+        <div class="risk-phrase">"${r.phrase}"</div>
+        <div class="risk-impact">${r.impact}</div>
+        <div class="risk-meta">
+          <span style="color:${r.color};font-weight:600">${r.vendor}</span><span>·</span>
+          <span>${r.type}</span><span>·</span><span>p.${r.page}</span>
+          <button class="btn btn-g btn-sm" style="margin-left:auto;padding:2px 8px;font-size:10px" onclick="goDeepDive('${RISKS.indexOf(r)<2?'L1':'T1'}')">Trace →</button>
+        </div>
+      </div>
+      <span class="bd ${sevClass[r.sev]||''}">${r.sev}</span>
+    </div>
+  `).join('');
+}
+
+/* ─── FEATURE 6: Risk timeline ─── */
+function renderRiskTimeline(){
+  const container=document.getElementById('risk-timeline-container');
+  const vendorRisks={
+    'Nexus Systems':[{page:67,sev:'Low',phrase:'IP ambiguity'},{page:71,sev:'Critical',phrase:'liability cap'}],
+    'TechBridge Group':[{page:29,sev:'Medium',phrase:'resource availability'}],
+    'DataCore SA':[{page:38,sev:'Medium',phrase:'best endeavours'},{page:83,sev:'High',phrase:'CPI escalation'},{page:91,sev:'High',phrase:'IP retention'}]
+  };
+  const sevColor={Critical:'#DC2626',High:'#EA580C',Medium:'#CA8A04',Low:'#16A34A'};
+  const maxPage=100;
+  let html='<div class="risk-timeline">';
+  Object.entries(vendorRisks).forEach(([vendor,risks])=>{
+    html+=`<div class="rtl-vendor">
+      <div class="rtl-vendor-label">
+        <div style="width:8px;height:8px;border-radius:50%;background:${VCOLORS[vendor]}"></div>
+        ${vendor}
+        ${risks.length===0?'<span style="font-size:11px;color:var(--t3);font-weight:400">— No risks detected</span>':''}
+      </div>
+      <div class="rtl-track">
+        <div class="rtl-bar"></div>`;
+    risks.forEach(r=>{
+      const left=Math.round((r.page/maxPage)*100);
+      html+=`<div class="rtl-flag" style="left:${left}%" onclick="openRiskDrawer('${vendor}','${r.sev}','${r.phrase}','Page ${r.page}','Risk flagged at page ${r.page}','Review this clause carefully.')">
+        <div class="rtl-pin" style="background:${sevColor[r.sev]||'#888'}"></div>
+        <div class="rtl-pg">p.${r.page}</div>
+      </div>`;
+    });
+    // Cluster annotation
+    if(risks.length>=2){
+      const pages=risks.map(r=>r.page);
+      const range=Math.max(...pages)-Math.min(...pages);
+      if(range<20){
+        const midLeft=Math.round((pages.reduce((a,b)=>a+b)/pages.length/maxPage)*100);
+        html+=`<div style="position:absolute;left:${midLeft}%;transform:translateX(-50%);top:-20px;font-size:9px;font-weight:700;color:var(--part);white-space:nowrap;background:var(--part-bg);padding:1px 5px;border-radius:3px">⚑ Cluster</div>`;
+      }
+    }
+    html+=`</div></div>`;
+  });
+  html+='<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);font-family:var(--fm);margin-top:4px;padding:0 0"><span>p.1</span><span>p.50</span><span>p.100</span></div>';
+  html+='</div>';
+  container.innerHTML=html;
+}
+
+/* ─── FEATURE 3: Deep Dive with document viewer + FEATURE 5: Audit trail ─── */
+function selectVendor(short,el){
+  activeVendor={'Nexus':'Nexus Systems','TechBridge':'TechBridge Group','DataCore':'DataCore SA'}[short];
+  document.querySelectorAll('.vbtn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  updateDeepDive();
+}
+
+function updateDeepDive(){
+  const reqId=document.getElementById('dd-req')?.value||activeReqDD;
+  activeReqDD=reqId;
+  const data=DEEP_DIVE[reqId];
+  const grid=document.getElementById('dd-grid');
+  if(!data){
+    grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--t3)">Select L1 or T1 to see the full trace in this demo.</div>`;
+    return;
+  }
+  const vd=data.vendors[activeVendor];
+  const statusMap={FULL:'chip-full',PARTIAL:'chip-part',NONE:'chip-none',AMBIGUOUS:'chip-ambg'};
+  const actClass=vd.status==='FULL'?'act-accept':vd.status==='PARTIAL'?'act-adj':'act-rej';
+
+  // Build audit log HTML
+  const logHTML=vd.auditLog.map(e=>`
+    <div class="at-entry${e.human?' at-human':''}">
+      <div class="at-time">${e.time}</div>
+      <div class="at-dot" style="background:${e.dot}"></div>
+      <div class="at-text">${e.text}</div>
+    </div>
+  `).join('');
+
+  grid.innerHTML=`
+    <div class="dd-pane">
+      <div class="dp-head">
+        <div class="dp-ht">📋 RFP Requirement</div>
+        <div class="dp-ref">${data.rfpRef}</div>
+      </div>
+      <div class="dp-body">
+        <div style="font-size:13px;line-height:1.8;margin-bottom:14px">${data.rfpClause}</div>
+        <div style="margin-bottom:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)">Source document</div>
+        <div class="doc-viewer">
+          <div class="doc-viewer-head">RFP Document · Page ${data.rfpPage}</div>
+          ...This clause is mandatory and cannot be waived. The Vendor shall accept <span class="hl-rfp">unlimited financial liability</span> for any data breach or loss of personal information. This obligation extends to all notification costs, regulatory penalties under POPIA, legal defence costs, and reputational remediation...
+          <div class="doc-page-num">Page ${data.rfpPage}</div>
+        </div>
+        <div class="ai-box" style="margin-top:12px;background:var(--ac-bg);border-color:#A7D9D6">
+          <div class="ai-head" style="background:#D4EDEA"><div style="font-size:11px;color:var(--ac)">💡 RFP Intent</div></div>
+          <div class="ai-body-txt" style="font-size:12px;color:#0A5954">This is a <strong>hard mandatory requirement</strong>. Non-compliance cannot be waived and would require renegotiation or disqualification before award.</div>
+        </div>
+      </div>
+    </div>
+    <div class="dd-pane">
+      <div class="dp-head">
+        <div class="dp-ht" style="display:flex;align-items:center;gap:6px">
+          <div style="width:8px;height:8px;border-radius:50%;background:${VCOLORS[activeVendor]}"></div>
+          ${activeVendor}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="chip ${statusMap[vd.status]||''}">${vd.status}</span>
+          <span class="mono text-xs" style="color:var(--t3)">${Math.round(vd.conf*100)}% conf.</span>
+        </div>
+      </div>
+      <div class="dp-body">
+        ${vd.evidence}
+        <div style="margin-bottom:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3)">
+          Evidence source · <span class="src-link" onclick="showToast('In the full app, this jumps to ${vd.sec} in the document viewer')">📎 ${vd.sec} ↗</span>
+        </div>
+        <div class="doc-viewer">
+          ${vd.docViewer}
+        </div>
+        <div class="ai-box">
+          <div class="ai-head">
+            <div class="ai-spark"><svg width="8" height="8" fill="white" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg></div>
+            AI Assessment
+          </div>
+          <div class="ai-body-txt">${vd.ai}</div>
+          <div class="ai-foot">
+            <span>llama-3.3-70b</span><span>Conf: ${Math.round(vd.conf*100)}%</span><span>Stage 1+2 retrieval</span>
+          </div>
+        </div>
+        <div class="action-row">
+          <div class="act-btn ${actClass}" onclick="acceptAssessment('${reqId}','${activeVendor}')">✓ Accept</div>
+          <div class="act-btn act-adj" onclick="showToast('Annotation mode — drag to highlight alternative evidence')">✏ Annotate</div>
+          <div class="act-btn act-rej" onclick="showToast('Override recorded in audit trail with timestamp')">✗ Override</div>
+        </div>
+        <div class="audit-trail">
+          <div class="at-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+            <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Audit Trail (${vd.auditLog.length} events) — click to expand
+          </div>
+          <div class="at-log" id="at-log">
+            ${logHTML}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function acceptAssessment(reqId,vendor){
+  const now=new Date();
+  const time=`${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  showToast(`Assessment accepted — recorded in audit trail at ${time}`);
+  const log=document.getElementById('at-log');
+  if(log){
+    const entry=document.createElement('div');
+    entry.className='at-entry at-human fade-up';
+    entry.innerHTML=`<div class="at-time">${time}</div><div class="at-dot" style="background:var(--ac)"></div><div class="at-text">User <strong>accepted</strong> AI assessment for ${vendor}</div>`;
+    log.appendChild(entry);
+  }
+}
+
+/* ─── FEATURE 7: Comparison diff modal ─── */
+function showDiffModal(reqId){
+  diffReqId=reqId||activeReqDD;
+  document.getElementById('diffModal').classList.add('open');
+  const req=REQS.find(r=>r.id===diffReqId)||{normalised:diffReqId,id:diffReqId};
+  document.getElementById('diff-req-title').textContent=`${req.id} — ${req.normalised.substring(0,60)}`;
+  renderDiffBody();
+}
+function closeDiffModal(){document.getElementById('diffModal').classList.remove('open');}
+
+function setDiffVendors(v1,v2,el){
+  diffV1=v1; diffV2=v2;
+  document.querySelectorAll('#diff-vendor-btns .vbtn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  renderDiffBody();
+}
+
+function renderDiffBody(){
+  const data=DEEP_DIVE[diffReqId];
+  const body=document.getElementById('diff-body');
+  if(!data){body.innerHTML=`<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--t3)">Switch to L1 or T1 for full comparison data.</div>`;return;}
+
+  [diffV1,diffV2].forEach((v,i)=>{
+    const vd=data.vendors[v];
+    const statusMap={FULL:'chip-full',PARTIAL:'chip-part',NONE:'chip-none',AMBIGUOUS:'chip-ambg'};
+    const col=document.createElement('div');
+    col.className='diff-col';
+    if(!vd){col.innerHTML=`<div class="diff-col-head"><div style="width:8px;height:8px;border-radius:50%;background:${VCOLORS[v]}"></div>${v}</div><div style="padding:20px;text-align:center;color:var(--t3)">No data</div>`;body.children[i]?body.replaceChild(col,body.children[i]):body.appendChild(col);return;}
+    col.innerHTML=`
+      <div class="diff-col-head">
+        <div style="width:8px;height:8px;border-radius:50%;background:${VCOLORS[v]}"></div>
+        ${v}
+        <span class="chip ${statusMap[vd.status]||''}" style="margin-left:auto">${vd.status}</span>
+        <span class="mono text-xs" style="color:var(--t3)">${Math.round(vd.conf*100)}%</span>
+      </div>
+      <div class="diff-text">${vd.docViewer||'<div class="doc-viewer"><div style="color:var(--t3);font-size:12px">Excerpt not available for this requirement.</div></div>'}</div>
+      <div class="ai-box" style="margin-top:12px">
+        <div class="ai-head"><div class="ai-spark"><svg width="8" height="8" fill="white" viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg></div>AI Assessment</div>
+        <div class="ai-body-txt" style="font-size:12px">${vd.ai}</div>
+      </div>`;
+    if(body.children[i])body.replaceChild(col,body.children[i]);
+    else body.appendChild(col);
+  });
+}
+
+/* ─── EXPORT with modal (FEATURE: real download stub) ─── */
+function simulateExport(){
+  document.getElementById('exportModal').classList.add('open');
+  document.getElementById('export-done').style.display='none';
+  const steps=['ems1','ems2','ems3','ems4'];
+  steps.forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.background='';el.style.borderColor='';
+    el.querySelector('.em-dot').style.background='var(--bg2)';
+    el.querySelector('.em-dot').textContent=steps.indexOf(id)+1;
+    el.querySelector('.em-status').textContent='Waiting';el.querySelector('.em-status').style.color='var(--t3)';
+  });
+  let i=0;
+  const go=()=>{
+    if(i>=steps.length){document.getElementById('export-done').style.display='block';return;}
+    const el=document.getElementById(steps[i]);
+    el.style.background='#ECFDF5';el.style.borderColor='#A7D9D6';
+    el.querySelector('.em-dot').style.background='var(--ac)';el.querySelector('.em-dot').textContent='✓';
+    el.querySelector('.em-status').textContent='Done';el.querySelector('.em-status').style.color='var(--full)';
+    i++;setTimeout(go,600);
+  };
+  setTimeout(go,400);
+}
+function closeExportModal(){document.getElementById('exportModal').classList.remove('open');}
+
+function simulateExportDetailed(){
+  const btn=document.getElementById('exportBarBtn');
+  btn.textContent='Generating…';btn.disabled=true;
+  const steps=document.getElementById('export-steps');
+  steps.style.display='flex';
+  const els=['es1','es2','es3','es4'];let i=1;
+  const iv=setInterval(()=>{
+    if(i<els.length){
+      document.getElementById(els[i-1]).className='es done';
+      document.getElementById(els[i-1]).querySelector('.es-dot').textContent='✓';
+      document.getElementById(els[i]).className='es active';i++;
+    }else{
+      clearInterval(iv);
+      document.getElementById(els[els.length-1]).className='es done';
+      document.getElementById(els[els.length-1]).querySelector('.es-dot').textContent='✓';
+      btn.innerHTML='✓ Downloaded';btn.disabled=false;
+      showToast('Report generated — 8 pages, professional PDF');
+      setTimeout(()=>{steps.style.display='none';btn.textContent='Download Report';},3000);
+    }
+  },700);
+}
+
+function simulateRunAudit(){
+  const btn=document.getElementById('runAuditBtn');
+  btn.innerHTML='<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Running…';
+  btn.disabled=true;
+  setTimeout(()=>{
+    btn.innerHTML='✓ Complete';
+    showToast('Audit complete — 10 requirements × 3 vendors in 4.2s');
+    setTimeout(()=>{btn.innerHTML=`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg> Re-run Audit`;btn.disabled=false;},2500);
+  },2200);
+}
+
+/* ─── CHAT ─── */
+function toggleChat(){chatOpen=!chatOpen;document.getElementById('right-panel').classList.toggle('closed',!chatOpen);}
+const chatResponses={
+  'nexus risk':{text:'Nexus Systems has 1 <strong>Critical</strong> risk: a liability cap at §12.4 (p.71) limiting total liability to ~R3.6M. Despite 92% compliance, this single clause is a dealbreaker for POPIA-sensitive workloads.',cite:'→ §12.4 Nexus Proposal · Page 71'},
+  'recommend':{text:'<strong>TechBridge Group</strong> is recommended at 85% compliance. Nexus scores higher (92%) but the Critical liability cap is disqualifying. TechBridge accepts unlimited liability, no critical risks, credible architecture.',cite:'→ Analysis: 10 requirements × 3 vendors'},
+  'limited liability':{text:'The clause is in <strong>Nexus Systems §12.4, Page 71</strong>: <em>"shall not exceed the total fees paid in the preceding twelve (12) months"</em> — contradicts RFP Clause 7.1.0. Cap is ~R3.6M.',cite:'→ Click Deep Dive → L1 to see both documents side by side'},
+};
+
+function askQuestion(q){
+  addUserMsg(q);if(document.getElementById('chat-input'))document.getElementById('chat-input').value='';
+  const lower=q.toLowerCase();
+  let resp=lower.includes('nexus')&&lower.includes('risk')?chatResponses['nexus risk']:lower.includes('recommend')?chatResponses['recommend']:lower.includes('limited liability')||lower.includes('liability clause')?chatResponses['limited liability']:{text:'Based on the audit, <strong>Nexus</strong> leads at 92% but has a Critical liability risk. <strong>TechBridge</strong> at 85% is safest. Ask about specific clauses, risks or comparisons.',cite:'→ 10 requirements × 3 vendors'};
+  const msgs=document.getElementById('chat-msgs');
+  const t=document.createElement('div');t.className='msg msg-ai fade-up';
+  t.innerHTML='<div class="msg-lbl">TenderAI</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>';
+  msgs.appendChild(t);msgs.scrollTop=msgs.scrollHeight;
+  setTimeout(()=>{msgs.removeChild(t);addAiMsg(resp.text,resp.cite);},700);
+}
+function addUserMsg(text){const msgs=document.getElementById('chat-msgs');const el=document.createElement('div');el.className='msg msg-user fade-up';el.innerHTML=`<div class="msg-lbl">You</div><div class="bubble">${text}</div>`;msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;}
+function addAiMsg(text,cite){const msgs=document.getElementById('chat-msgs');const el=document.createElement('div');el.className='msg msg-ai fade-up';el.innerHTML=`<div class="msg-lbl">TenderAI</div><div class="bubble">${text}${cite?`<div class="cite">${cite}</div>`:''}</div>`;msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;}
+function sendChat(){const input=document.getElementById('chat-input');const q=input.value.trim();if(!q)return;input.value='';if(!chatOpen){chatOpen=true;document.getElementById('right-panel').classList.remove('closed');}askQuestion(q);}
+
+/* ─── TOAST ─── */
+function showToast(msg){const t=document.getElementById('overrideToast');document.getElementById('toast-msg').textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function hideToast(){document.getElementById('overrideToast').classList.remove('show');}
+
+/* ─── INIT ─── */
+renderReqs();
+renderMatrix();
+renderRisks();
+renderRiskTimeline();
+updateDeepDive();
+</script>
+</body>
+</html>

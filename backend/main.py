@@ -11,14 +11,17 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-from fastapi import FastAPI, Request
+ 
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
+from fastapi.staticfiles import StaticFiles
+ 
 from backend.config import settings
 from backend.database import create_tables
-from backend.routers import audit, documents, projects
+from backend.database_decisions import HumanDecision  # registers table with metadata
+from backend.routers import audit, chat, documents, projects, decisions
+ 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -71,11 +74,11 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── CORS (allow Streamlit frontend) ──────────────────────────────────────────
+# ── CORS (allow Next.js and Streamlit frontends) ──────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501", "*"],
+    allow_origins=["http://localhost:3000", "http://localhost:8501", "http://127.0.0.1:3000", "http://127.0.0.1:8501", "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,6 +89,8 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     logger.error("Unhandled exception on %s %s: %s", request.method, request.url, exc)
     return JSONResponse(
         status_code=500,
@@ -98,6 +103,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(projects.router, prefix="/api/projects", tags=["Projects"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(audit.router, prefix="/api/audit", tags=["Audit"])
+app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+app.include_router(decisions.router, prefix="/api/decisions", tags=["Decisions"])
+
+_static_dir = Path(__file__).resolve().parent.parent / "static"
+if _static_dir.is_dir():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

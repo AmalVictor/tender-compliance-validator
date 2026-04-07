@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # ── Obligation keyword patterns ───────────────────────────────────────────────
 
-# Primary obligation words (high confidence this is a requirement)
+# Primary obligation words 
 PRIMARY_OBLIGATION = re.compile(
     r"\b(shall|must|is required to|are required to|is mandatory|"
     r"mandatory requirement|is obligatory|will be required|"
@@ -47,7 +47,7 @@ PRIMARY_OBLIGATION = re.compile(
     re.IGNORECASE,
 )
 
-# Secondary obligation words (lower confidence — still worth classifying)
+# Secondary obligation words 
 SECONDARY_OBLIGATION = re.compile(
     r"\b(should|is expected to|are expected to|will ensure|"
     r"will provide|will include|must include|must demonstrate|"
@@ -55,7 +55,7 @@ SECONDARY_OBLIGATION = re.compile(
     re.IGNORECASE,
 )
 
-# Negative patterns — exclude these even if they contain obligation words
+# Negative patterns 
 EXCLUSION_PATTERN = re.compile(
     r"\b(does not|do not|is not|are not|will not|cannot|"
     r"for example|e\.g\.|i\.e\.|such as|including but not|"
@@ -81,6 +81,7 @@ class ExtractedRequirement:
     page_number: int
     confidence_score: float     # 0–1: how confident the LLM is in its classification
     is_primary: bool            # True if matched primary obligation keywords
+    bbox: list[float] | None = None  # [x0, y0, x1, y1] PDF page coords for trace highlighting
 
 
 # ── Main extractor ────────────────────────────────────────────────────────────
@@ -275,6 +276,7 @@ Rules:
             section_title=chunk.section_title,
             page_number=chunk.page_number,
             confidence_score=confidence,
+            bbox=chunk.bbox,
             is_primary=candidate["is_primary"],
         )
 
@@ -290,6 +292,7 @@ Rules:
             section_title=chunk.section_title,
             page_number=chunk.page_number,
             confidence_score=0.4,
+            bbox=chunk.bbox,
             is_primary=candidate["is_primary"],
         )
 

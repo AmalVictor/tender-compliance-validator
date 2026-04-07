@@ -25,13 +25,16 @@ Why not LLM-only?
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from typing import Literal
 
 from backend.config import settings
 from backend.database import RiskSeverity, RiskType
-from utils.llm_client import call_fast
+from pydantic import BaseModel, Field, ValidationError
+from utils.llm_client import acall_smart, call_fast
 from utils.risk_patterns import RiskPattern, scan_text
 
 logger = logging.getLogger(__name__)
@@ -62,6 +65,30 @@ _RISK_SYSTEM_PROMPT = """You are a legal risk analyst specialising in government
 Assess whether a flagged clause in a vendor proposal creates a genuine risk for the buyer.
 
 Return ONLY valid JSON — no markdown, no preamble."""
+
+_TOXIC_SYSTEM_PROMPT = """You are a Senior Corporate Lawyer and Procurement Auditor.
+
+Your task is to identify toxic contractual clauses hidden in a vendor proposal.
+Return ONLY valid JSON.
+
+Look specifically for:
+- Financial Traps: uncapped price increases, hidden fees.
+- Legal Traps: capped liability, refusal to pay service credits for downtime, forced arbitration in foreign jurisdictions.
+- Security Traps: offshore data processing, refusal to submit to third-party audits.
+
+Do not invent risks. Every finding must quote an exact phrase from the provided text."""
+
+
+class RiskFindingResponse(BaseModel):
+    risk_detected: bool
+    risk_type: Literal["FINANCIAL", "LEGAL", "SECURITY", "OPERATIONAL"] | None = None
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] | None = None
+    matched_phrase: str | None = None
+    impact_explanation: str | None = None
+
+
+class RiskScanResponse(BaseModel):
+    findings: list[RiskFindingResponse]
 
 
 # ── Risk detector ─────────────────────────────────────────────────────────────
@@ -194,6 +221,89 @@ class RiskDetector:
             vendor_document_id, len(findings), len(raw_hits),
         )
         return findings
+
+    async def ascan_for_risks(self, document_text: str) -> list[RiskFindingResponse]:
+        """
+        Async LLM-first scanner for toxic clauses in a vendor proposal.
+        Returns validated risk findings.
+        """
+        prompt = f"""Scan the following vendor proposal text for toxic clauses.
+
+DOCUMENT TEXT:
+{document_text}
+
+Return ONLY this JSON:
+{{
+  "findings": [
+    {{
+      "risk_detected": true | false,
+      "risk_type": "FINANCIAL" | "LEGAL" | "SECURITY" | "OPERATIONAL",
+      "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+      "matched_phrase": "<exact quote from document>",
+      "impact_explanation": "<why this is harmful to the buyer>"
+    }}
+  ]
+}}
+
+Rules:
+- Include only genuine risks.
+- Use exact verbatim matched_phrase from the document.
+- If no risks are found, return: {{"findings": []}}"""
+
+        retries = 2
+        validation_error: ValidationError | None = None
+        current_prompt = prompt
+        for attempt in range(retries + 1):
+            try:
+                result = await acall_smart(
+                    current_prompt,
+                    system=_TOXIC_SYSTEM_PROMPT,
+                    max_tokens=900,
+                    temperature=0.0,
+                )
+                validated = RiskScanResponse.model_validate(result)
+                return [f for f in validated.findings if f.risk_detected and f.risk_type and f.severity and f.matched_phrase]
+            except ValidationError as e:
+                validation_error = e
+                if attempt >= retries:
+                    break
+                logger.warning(
+                    "Risk schema validation failed on attempt %d/%d: %s",
+                    attempt + 1,
+                    retries + 1,
+                    e,
+                )
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"Your previous response failed validation: {e}. "
+                    "Please correct it and return ONLY valid JSON."
+                )
+            except Exception as e:
+                logger.error("Async risk scan failed on attempt %d: %s", attempt + 1, e)
+                if attempt >= retries:
+                    return []
+                await asyncio.sleep(2 ** attempt)
+
+        logger.error("Risk scan failed validation after retries: %s", validation_error)
+        return []
+
+    def map_risk_type(self, risk_type: str) -> RiskType:
+        mapping = {
+            "FINANCIAL": RiskType.PRICE_CHANGE,
+            "LEGAL": RiskType.LIABILITY_CAP,
+            "SECURITY": RiskType.OBLIGATION_WEAKENING,
+            "OPERATIONAL": RiskType.SCOPE_CREEP,
+        }
+        return mapping.get(risk_type.upper(), RiskType.VAGUE_COMMITMENT)
+
+    def map_severity(self, severity: str) -> RiskSeverity:
+        mapping = {
+            "CRITICAL": RiskSeverity.CRITICAL,
+            "HIGH": RiskSeverity.HIGH,
+            "MEDIUM": RiskSeverity.MEDIUM,
+            "LOW": RiskSeverity.LOW,
+        }
+        return mapping.get(severity.upper(), RiskSeverity.MEDIUM)
 
     # ── LLM evaluation ────────────────────────────────────────────────────────
 

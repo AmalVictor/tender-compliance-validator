@@ -2,19 +2,23 @@
 routers/audit.py
 ----------------
 Full audit orchestration endpoints.
-Replaces the Phase 1 stub with real pipeline execution.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+import tempfile
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import (
+    AdminCheck,
     Document,
     DocumentType,
     Match,
@@ -125,9 +129,6 @@ async def run_audit(
     """
     Trigger the full compliance audit pipeline.
 
-    Runs synchronously (waits for completion) for the hackathon demo.
-    For large RFPs (50+ requirements × 3 vendors), expect 3–8 minutes.
-    Pre-run and cache results the night before your demo.
     """
     if project_id in _running_audits:
         raise HTTPException(
@@ -211,6 +212,14 @@ async def get_audit_results(
     )
     risk_findings = risk_result.scalars().all()
 
+    # Admin checks
+    admin_result = await db.execute(
+        select(AdminCheck).where(
+            AdminCheck.vendor_document_id.in_([p.id for p in proposals])
+        )
+    )
+    admin_checks = admin_result.scalars().all()
+
     # Compute scores
     req_dicts = [
         {
@@ -226,6 +235,7 @@ async def get_audit_results(
 
     match_dicts = [
         {
+            "id": m.id,
             "requirement_id": m.requirement_id,
             "vendor_document_id": m.vendor_document_id,
             "status": m.status.value,
@@ -234,6 +244,8 @@ async def get_audit_results(
             "section_ref": m.section_ref,
             "explanation": m.explanation,
             "reranker_score": m.reranker_score,
+            "page_number": m.page_number,
+            "bbox": json.loads(m.bbox) if isinstance(m.bbox, str) else m.bbox,
         }
         for m in matches
     ]
@@ -307,6 +319,17 @@ async def get_audit_results(
         "compliance_matrix": _build_matrix(requirements, proposals, matches),
         "risk_findings": risk_dicts,
         "match_details": match_dicts,
+        "admin_checks": [
+            {
+                "id": a.id,
+                "vendor_document_id": a.vendor_document_id,
+                "item_name": a.item_name,
+                "status": a.status.value if hasattr(a.status, 'value') else a.status,
+                "page_reference": a.page_reference,
+                "matched_text": a.matched_text,
+            }
+            for a in admin_checks
+        ] if admin_checks else [],
     }
 
 
@@ -331,6 +354,7 @@ def _build_matrix(
         for prop in proposals:
             match = match_lookup.get((req.id, prop.id))
             vendor_results.append({
+                "id": match.id if match else None,
                 "vendor_document_id": prop.id,
                 "vendor_name": prop.vendor_name or prop.filename,
                 "status": match.status.value if match else "PENDING",
@@ -340,11 +364,229 @@ def _build_matrix(
                 "explanation": match.explanation if match else None,
             })
         matrix.append({
-            "requirement_id": req.id,
-            "rfp_clause_ref": req.rfp_clause_ref,
-            "requirement_text": req.normalised_intent or req.raw_text,
-            "category": req.category.value,
-            "criticality": req.criticality.value,
-            "vendor_results": vendor_results,
+            "requirement": {  
+                "id": req.id,
+                "raw_text": req.raw_text,
+                "normalised": req.normalised_intent or req.raw_text,
+                "rfp_clause_ref": req.rfp_clause_ref,
+                "category": req.category.value,
+                "criticality": req.criticality.value,
+                "section_title": req.section_title,
+                "page_number": req.page_number,
+            },
+            "matches": vendor_results,
         })
     return matrix
+
+# ── Export PDF report ──────────────────────────────────────────────────────────
+ 
+@router.get("/export/{project_id}", response_class=FileResponse)
+async def export_audit_report(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate and download a professional PDF audit report.
+ 
+    The PDF includes:
+    - Cover page with traffic-light vendor scores
+    - Executive summary table per vendor
+    - Colour-coded compliance matrix (rows=requirements, columns=vendors)
+    - Risk findings sorted by severity
+    - Administrative eligibility check results
+    - Methodology note (2 paragraphs)
+    
+    Takes ~2 seconds to generate.
+    """
+    # ── Load all data ──────────────────────────────────────────────────────────
+    proj_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found.")
+ 
+    if not project.audit_complete:
+        raise HTTPException(
+            status_code=400,
+            detail="Audit not complete. Run POST /api/audit/run/{project_id} first.",
+        )
+ 
+    req_result = await db.execute(
+        select(Requirement).where(
+            Requirement.project_id == project_id,
+            Requirement.is_confirmed == True,
+            Requirement.is_deleted == False,
+        ).order_by(Requirement.criticality, Requirement.id)
+    )
+    requirements = req_result.scalars().all()
+ 
+    prop_result = await db.execute(
+        select(Document).where(
+            Document.project_id == project_id,
+            Document.document_type == DocumentType.PROPOSAL,
+        )
+    )
+    proposals = prop_result.scalars().all()
+ 
+    if not proposals:
+        raise HTTPException(status_code=404, detail="No proposals found.")
+ 
+    proposal_ids = [p.id for p in proposals]
+ 
+    match_result = await db.execute(
+        select(Match).where(Match.vendor_document_id.in_(proposal_ids))
+    )
+    matches = match_result.scalars().all()
+ 
+    risk_result = await db.execute(
+        select(RiskFinding).where(RiskFinding.vendor_document_id.in_(proposal_ids))
+    )
+    risk_findings = risk_result.scalars().all()
+ 
+    admin_result = await db.execute(
+        select(AdminCheck).where(AdminCheck.vendor_document_id.in_(proposal_ids))
+    )
+    admin_checks = admin_result.scalars().all()
+ 
+    # ── Build dicts for report generator ──────────────────────────────────────
+    req_dicts = [
+        {
+            "id": r.id,
+            "normalised_intent": r.normalised_intent or r.raw_text,
+            "raw_text": r.raw_text,
+            "category": r.category.value,
+            "criticality": r.criticality.value,
+            "rfp_clause_ref": r.rfp_clause_ref,
+        }
+        for r in requirements
+    ]
+ 
+    match_dicts = [
+        {
+            "id": m.id,
+            "requirement_id": m.requirement_id,
+            "vendor_document_id": m.vendor_document_id,
+            "status": m.status.value,
+            "confidence": m.confidence,
+            "evidence_quote": m.evidence_quote,
+            "section_ref": m.section_ref,
+            "explanation": m.explanation,
+            "reranker_score": m.reranker_score,
+            "page_number": m.page_number,
+            "bbox": json.loads(m.bbox) if isinstance(m.bbox, str) else m.bbox,
+        }
+        for m in matches
+    ]
+ 
+    risk_dicts = [
+        {
+            "vendor_document_id": r.vendor_document_id,
+            "risk_type": r.risk_type.value,
+            "severity": r.severity.value,
+            "matched_phrase": r.matched_phrase,
+            "impact_explanation": r.impact_explanation,
+            "section_ref": r.section_ref,
+            "page_number": r.page_number,
+            "rfp_clause_ref": r.rfp_clause_ref,
+            "confirmed_by_llm": r.confirmed_by_llm,
+            "pattern_name": getattr(r, "pattern_name", r.risk_type.value),
+        }
+        for r in risk_findings
+    ]
+ 
+    admin_dicts = [
+        {
+            "vendor_document_id": a.vendor_document_id,
+            "item_name": a.item_name,
+            "status": a.status,
+            "page_reference": a.page_reference,
+            "matched_text": a.matched_text,
+        }
+        for a in admin_checks
+    ] if admin_checks else []
+ 
+    vendor_list = [
+        {"document_id": p.id, "vendor_name": p.vendor_name or p.filename}
+        for p in proposals
+    ]
+ 
+    vendor_scores = ComplianceScorer().score_all(
+        vendors=vendor_list,
+        requirements=req_dicts,
+        matches=match_dicts,
+        risk_findings=risk_dicts,
+    )
+ 
+    vendor_score_dicts = [
+        {
+            "vendor_document_id": s.vendor_document_id,
+            "vendor_name": s.vendor_name,
+            "compliance_score": s.compliance_score,
+            "risk_score": s.risk_score,
+            "status_colour": s.status_colour,
+            "mandatory_full": s.mandatory_full,
+            "mandatory_partial": s.mandatory_partial,
+            "mandatory_none": s.mandatory_none,
+            "mandatory_ambiguous": s.mandatory_ambiguous,
+            "critical_risks": s.critical_risks,
+            "high_risks": s.high_risks,
+        }
+        for s in vendor_scores
+    ]
+ 
+    # ── Generate PDF in temp file ──────────────────────────────────────────────
+    os.makedirs("reports", exist_ok=True)
+    safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in project.name)
+    output_path = f"reports/{safe_name}_audit_report.pdf"
+ 
+    # Load human decisions for the decision trail section
+    try:
+        from backend.database_decisions import HumanDecision
+        from sqlalchemy import select as sa_select
+        decision_result = await db.execute(
+            sa_select(HumanDecision)
+            .where(HumanDecision.vendor_document_id.in_(proposal_ids))
+            .order_by(HumanDecision.decided_at.asc())
+        )
+        raw_decisions = decision_result.scalars().all()
+        decision_dicts = [
+            {
+                "match_id": d.match_id,
+                "requirement_id": d.requirement_id,
+                "vendor_document_id": d.vendor_document_id,
+                "decision_type": d.decision_type.value,
+                "override_status": d.override_status,
+                "reviewer_note": d.reviewer_note,
+                "reviewer_name": d.reviewer_name,
+                "decided_at": d.decided_at.isoformat() if d.decided_at else None,
+            }
+            for d in raw_decisions
+        ]
+    except Exception as e:
+        logger.warning("Could not load decisions for PDF: %s", e)
+        decision_dicts = []
+ 
+    try:
+        from services.report_generator import ReportGenerator
+        pdf_path = await asyncio.to_thread(
+            ReportGenerator().generate,
+            project_name=project.name,
+            vendor_scores=vendor_score_dicts,
+            requirements=req_dicts,
+            matches=match_dicts,
+            risk_findings=risk_dicts,
+            admin_checks=admin_dicts or None,
+            decisions=decision_dicts or None,
+            output_path=output_path,
+        )
+    except Exception as e:
+        logger.exception("Report generation failed for project %d: %s", project_id, e)
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {e}")
+ 
+    filename = f"{safe_name}_audit_report.pdf"
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+ 

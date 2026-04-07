@@ -84,7 +84,7 @@ class TestProposalIndexer:
         ]
         parsed = make_mock_parsed_doc(proposal_chunks, "vendor_a.pdf")
         indexer = ProposalIndexer()
-        count = indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID)
+        count = indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID, "Test Vendor")
         assert count == len(proposal_chunks)
 
         # Query: should find the 24/7 support chunk
@@ -113,8 +113,7 @@ class TestProposalIndexer:
             "Customer data is protected using industry-standard encryption.",
         ]
         parsed = make_mock_parsed_doc(proposal_chunks, "vendor_b.pdf")
-        indexer = ProposalIndexer()
-        indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID)
+        indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID, "Test Vendor")
 
         results = indexer.retrieve_with_keyword_boost(
             "vendor must hold ISO 27001 certification",
@@ -133,7 +132,7 @@ class TestProposalIndexer:
         """Empty parsed document should index zero chunks gracefully."""
         empty_parsed = make_mock_parsed_doc([], "empty.pdf")
         indexer = ProposalIndexer()
-        count = indexer.index(empty_parsed, self.PROJECT_ID, self.DOCUMENT_ID)
+        count = indexer.index(empty_parsed, self.PROJECT_ID, self.DOCUMENT_ID, "Test Vendor")
         assert count == 0
 
     def test_retrieve_unindexed_document_raises(self):
@@ -146,8 +145,7 @@ class TestProposalIndexer:
         """get_collection_stats should return correct chunk count."""
         chunks = ["First chunk of content.", "Second chunk of content.", "Third chunk."]
         parsed = make_mock_parsed_doc(chunks, "stats_test.pdf")
-        indexer = ProposalIndexer()
-        indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID)
+        indexer.index(parsed, self.PROJECT_ID, self.DOCUMENT_ID, "Test Vendor")
 
         stats = indexer.get_collection_stats(self.PROJECT_ID, self.DOCUMENT_ID)
         assert stats["chunk_count"] == len(chunks)

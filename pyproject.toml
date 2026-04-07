@@ -26,6 +26,9 @@ pydantic-settings = "^2.3.0"
 numpy = "^1.26.0"
 pandas = "^2.2.0"
 torch = { version = "^2.3.0", extras = [] }
+rank-bm25 = "^0.2.2"
+pytesseract = "^0.3.13"
+pillow = "^12.1.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

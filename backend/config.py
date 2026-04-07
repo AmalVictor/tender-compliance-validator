@@ -2,7 +2,6 @@
 config.py
 ---------
 Centralised configuration using pydantic-settings.
-All settings come from environment variables / .env file.
 """
 
 from functools import lru_cache
@@ -22,7 +21,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     GEMINI_API_KEY: str | None = None
 
-    # Groq model names (free tier)
+    # Groq model names
     SMART_MODEL: str = "llama-3.3-70b-versatile"   # entailment, reasoning
     FAST_MODEL: str = "llama-3.1-8b-instant"        # bulk extraction
 
@@ -44,10 +43,14 @@ class Settings(BaseSettings):
     MAX_RETRIES: int = 3
     RATE_LIMIT_SLEEP: float = 0.5
 
+    # ── TenderAI chat ─────────────────────────────────────────────────────────
+    CHAT_LLM_TEMPERATURE: float = 0.0
+    CHAT_MAX_TOKENS: int = 800
+
     # ── Retrieval ─────────────────────────────────────────────────────────────
     TOP_K_RETRIEVAL: int = 20
     TOP_K_RERANK: int = 5
-    FUSION_NONE_THRESHOLD: float = 0.015  # below this fused evidence is effectively absent
+    PROBABILITY_NONE_THRESHOLD: float = 0.05
 
     # ── Upload ────────────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "./uploads"

@@ -22,7 +22,14 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new tender review project."""
-    project = Project(name=payload.name, description=payload.description)
+    project = Project(
+        name=payload.name,
+        description=payload.description,
+        reference=payload.reference,
+        due_date=payload.due_date,
+        contract_value=payload.contract_value,
+        client_department=payload.client_department,
+    )
     db.add(project)
     await db.flush()
     await db.refresh(project)
@@ -31,6 +38,10 @@ async def create_project(
         id=project.id,
         name=project.name,
         description=project.description,
+        reference=project.reference,
+        due_date=project.due_date,
+        contract_value=project.contract_value,
+        client_department=project.client_department,
         created_at=project.created_at,
         audit_complete=project.audit_complete,
         document_count=0,
@@ -61,6 +72,10 @@ async def list_projects(db: AsyncSession = Depends(get_db)):
             id=p.id,
             name=p.name,
             description=p.description,
+            reference=p.reference,
+            due_date=p.due_date,
+            contract_value=p.contract_value,
+            client_department=p.client_department,
             created_at=p.created_at,
             audit_complete=p.audit_complete,
             document_count=doc_count_result.scalar() or 0,
@@ -94,6 +109,10 @@ async def get_project(
         id=project.id,
         name=project.name,
         description=project.description,
+        reference=project.reference,
+        due_date=project.due_date,
+        contract_value=project.contract_value,
+        client_department=project.client_department,
         created_at=project.created_at,
         audit_complete=project.audit_complete,
         document_count=doc_count.scalar() or 0,

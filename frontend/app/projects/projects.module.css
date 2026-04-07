@@ -1,0 +1,765 @@
+/* src/app/projects/projects.module.css */
+
+/* ─── Root ───────────────────────────────────────────────────────────────────*/
+.root {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ─── Hero header ────────────────────────────────────────────────────────────
+   Multi-layer background:
+   1. A subtle teal-to-transparent radial glow at the top-left
+   2. The SVG dot grid pattern (rendered inline in JSX)
+   3. A bottom border that separates header from content
+*/
+.hero {
+    position: relative;
+    background:
+        radial-gradient(ellipse 60% 80% at -5% -10%, rgba(12, 123, 114, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 105% -20%, rgba(5, 150, 105, 0.05) 0%, transparent 55%),
+        var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    /* clip the grid SVG */
+    flex-shrink: 0;
+}
+
+/* The inline SVG grid pattern — absolutely fills the hero */
+.heroGrid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 1;
+}
+
+.heroInner {
+    position: relative;
+    /* above the grid */
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* Brand mark */
+.heroBrand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.heroLogo {
+    width: 32px;
+    height: 32px;
+    background: var(--ac);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -.5px;
+}
+
+.heroBrandName {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--t1);
+}
+
+/* Summary stats row */
+.heroStats {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    /* Entrance: slide down + fade in */
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity .35s ease .1s, transform .35s ease .1s;
+}
+
+.heroStatsVisible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.heroStat {
+    padding: 6px 14px;
+    text-align: center;
+    min-width: 72px;
+}
+
+.heroStatVal {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -.5px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.heroStatLbl {
+    font-size: 9px;
+    color: var(--t3);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.heroStatDivider {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+    flex-shrink: 0;
+}
+
+/* Running pulse indicator in stats */
+.runningPulse {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--med);
+    animation: runPulse 1.6s ease infinite;
+}
+
+@keyframes runPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(202, 138, 4, .4);
+    }
+
+    50% {
+        opacity: .85;
+        transform: scale(1.1);
+        box-shadow: 0 0 0 5px rgba(202, 138, 4, 0);
+    }
+}
+
+/* New project button */
+.newBtn {
+    padding: 7px 14px;
+    background: var(--ac);
+    color: white;
+    border: none;
+    border-radius: var(--r);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background .15s, box-shadow .15s, transform .1s;
+    flex-shrink: 0;
+    margin-left: auto;
+    /* pushed to right unless stats are present */
+}
+
+/* When stats are present, newBtn margin is managed by heroInner flex */
+.heroStats+.newBtn {
+    margin-left: 16px;
+}
+
+.newBtn:hover {
+    background: var(--ac-dark, #0A6560);
+    box-shadow: 0 2px 12px rgba(12, 123, 114, .3);
+    transform: translateY(-1px);
+}
+
+.newBtn:active {
+    transform: translateY(0);
+}
+
+/* ─── Main content ───────────────────────────────────────────────────────────*/
+.main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 36px 24px 64px;
+    flex: 1;
+}
+
+.warningBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: var(--r);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #92400E;
+    margin-bottom: 24px;
+}
+
+.warningBanner code {
+    font-family: var(--font-mono), monospace;
+    background: rgba(0, 0, 0, .06);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.pageHeader {
+    margin-bottom: 24px;
+}
+
+.title {
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--t1);
+    letter-spacing: -.4px;
+    margin-bottom: 3px;
+}
+
+.sub {
+    font-size: 13px;
+    color: var(--t3);
+}
+
+/* ─── Grid ───────────────────────────────────────────────────────────────────*/
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+}
+
+/* ─── Project card ───────────────────────────────────────────────────────────
+   
+*/
+.projectCard {
+    background: var(--surface);
+    border-radius: var(--r2);
+    border: 1px solid var(--border);
+    box-shadow: var(--sh);
+    padding: 18px;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-family: inherit;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+
+    /* Entrance state */
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+        opacity .32s ease var(--card-delay, 0ms),
+        transform .32s ease var(--card-delay, 0ms),
+        border-color .15s,
+        box-shadow .15s;
+}
+
+/* Visible state — added after mount */
+.projectCardVisible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Hover — lift + teal glow ring */
+.projectCard:hover {
+    border-color: rgba(12, 123, 114, 0.45);
+    box-shadow:
+        0 0 0 3px rgba(12, 123, 114, 0.08),
+        0 4px 16px rgba(0, 0, 0, .07);
+    transform: translateY(-2px);
+}
+
+/* Enhancement 3: bottom accent bar — slides in on hover */
+.cardAccent {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--ac), #059669);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform .25s ease;
+    border-radius: 0 0 var(--r2) var(--r2);
+}
+
+.projectCard:hover .cardAccent {
+    transform: scaleX(1);
+}
+
+/* ─── Card internals ─────────────────────────────────────────────────────────*/
+.cardTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.projectIcon {
+    width: 36px;
+    height: 36px;
+    background: var(--ac-bg);
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ac);
+    flex-shrink: 0;
+    transition: background .15s, color .15s;
+}
+
+.projectCard:hover .projectIcon {
+    background: rgba(12, 123, 114, 0.18);
+}
+
+.projectName {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--t1);
+    line-height: 1.4;
+}
+
+.projectDesc {
+    font-size: 12px;
+    color: var(--t3);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.projectMeta {
+    font-size: 11px;
+    color: var(--t3);
+    font-family: var(--font-mono), monospace;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.metaRef {
+    color: var(--t2);
+    font-weight: 500;
+}
+
+.metaSep {
+    color: var(--t3);
+}
+
+.projectFooter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.auditStatus {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.vendorCount {
+    font-size: 11px;
+    color: var(--t3);
+}
+
+/* ─── Compliance ring ────────────────────────────────────────────────────────
+   
+*/
+.ringWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ringLabel {
+    position: absolute;
+    font-size: 8px;
+    font-weight: 700;
+    font-family: var(--font-mono), monospace;
+    line-height: 1;
+    text-align: center;
+    pointer-events: none;
+    /* Vertically offset by ~1px to visually centre in the ring */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+
+.ringArc {
+    transition: stroke-dasharray .6s ease .4s;
+}
+
+/* ─── Status dot ─────────────────────────────────────────────────────────────
+   
+*/
+.statusDot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.statusDotRunning {
+    animation: dotRipple 1.8s ease infinite;
+}
+
+@keyframes dotRipple {
+    0% {
+        box-shadow: 0 0 0 0 rgba(202, 138, 4, 0.5);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(202, 138, 4, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(202, 138, 4, 0);
+    }
+}
+
+/* Delete button */
+.deleteBtn {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--t3);
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+    flex-shrink: 0;
+}
+
+.deleteBtn:hover {
+    background: var(--none-bg);
+    color: var(--none);
+}
+
+/* ─── Skeleton ───────────────────────────────────────────────────────────────*/
+.skeletonCard {
+    background: var(--surface);
+    border-radius: var(--r2);
+    border: 1px solid var(--border);
+    padding: 18px;
+}
+
+.skLine {
+    border-radius: 4px;
+}
+
+/* ─── New project card ───────────────────────────────────────────────────────*/
+.newCard {
+    background: var(--surface);
+    border-radius: var(--r2);
+    border: 1.5px dashed var(--border-s);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    font-family: inherit;
+    min-height: 140px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.newCard:hover {
+    border-color: var(--ac);
+    background: var(--ac-bg);
+}
+
+.newCard:hover .newCardIcon {
+    background: var(--ac);
+    color: white;
+}
+
+.newCard:hover .newCardLabel {
+    color: var(--ac);
+}
+
+.newCardIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, .06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--t3);
+    transition: background .15s, color .15s;
+}
+
+.newCardLabel {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--t3);
+    transition: color .15s;
+}
+
+/* ─── Empty state ────────────────────────────────────────────────────────────*/
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 80px 24px;
+    text-align: center;
+}
+
+.emptyIllustration {
+    margin-bottom: 8px;
+}
+
+/* Staggered float animation for the three document sheets */
+.emptyDoc1 {
+    animation: floatA 3.6s ease-in-out infinite;
+}
+
+.emptyDoc2 {
+    animation: floatB 3.6s ease-in-out infinite .2s;
+}
+
+.emptyDoc3 {
+    animation: floatC 3.6s ease-in-out infinite .4s;
+}
+
+@keyframes floatA {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+@keyframes floatB {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes floatC {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+.emptyTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--t1);
+    letter-spacing: -.3px;
+}
+
+.emptySub {
+    font-size: 13px;
+    color: var(--t3);
+    line-height: 1.65;
+    max-width: 360px;
+}
+
+.emptyBtn {
+    margin-top: 4px;
+    padding: 9px 18px;
+    background: var(--ac);
+    color: white;
+    border: none;
+    border-radius: var(--r);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .15s, box-shadow .15s, transform .1s;
+}
+
+.emptyBtn:hover {
+    background: var(--ac-dark, #0A6560);
+    box-shadow: 0 2px 12px rgba(12, 123, 114, .3);
+    transform: translateY(-1px);
+}
+
+/* ─── Modals ─────────────────────────────────────────────────────────────────*/
+.modalOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .4);
+    z-index: 600;
+}
+
+.modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: var(--sh3);
+    width: min(540px, 92vw);
+    z-index: 601;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalIn .18s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, calc(-50% + 8px));
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.modalHead {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.modalTitle {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--t1);
+}
+
+.modalForm {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--t2);
+}
+
+.input {
+    padding: 9px 12px;
+    border-radius: var(--r);
+    border: 1px solid var(--border-s);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--t1);
+    background: var(--surface);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    width: 100%;
+}
+
+.input:focus {
+    border-color: var(--ac);
+    box-shadow: 0 0 0 3px rgba(12, 123, 114, .1);
+}
+
+.input::placeholder {
+    color: var(--t3);
+}
+
+.inputError {
+    border-color: var(--none) !important;
+    background: var(--none-bg);
+}
+
+.fieldError {
+    font-size: 11px;
+    color: var(--none);
+    margin-top: 2px;
+}
+
+.textarea {
+    padding: 9px 12px;
+    border-radius: var(--r);
+    border: 1px solid var(--border-s);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--t1);
+    background: var(--surface);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    width: 100%;
+    resize: vertical;
+}
+
+.textarea:focus {
+    border-color: var(--ac);
+    box-shadow: 0 0 0 3px rgba(12, 123, 114, .1);
+}
+
+.textarea::placeholder {
+    color: var(--t3);
+}
+
+.modalFoot {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
