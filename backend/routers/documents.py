@@ -16,8 +16,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.config import settings
-from backend.database import (
+from config import settings
+from database import (
     AdminCheck,
     Document,
     DocumentType,
@@ -25,7 +25,7 @@ from backend.database import (
     Requirement,
     get_db,
 )
-from backend.schemas import (
+from schemas import (
     AdminCheckResponse,
     BulkConfirmRequest,
     DocumentResponse,

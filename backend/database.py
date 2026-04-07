@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from backend.config import settings
+from config import settings
 
 
 # ── Engine & session factory ──────────────────────────────────────────────────
@@ -299,7 +299,7 @@ class RiskFinding(Base):
 
 # ── Human Decisions ───────────────────────────────────────────────────────────
 
-from backend.database_decisions import HumanDecision  # noqa: E402, F401
+from database_decisions import HumanDecision  # noqa: E402, F401
 
 
 class AdminCheck(Base):

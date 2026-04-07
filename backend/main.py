@@ -17,10 +17,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
  
-from backend.config import settings
-from backend.database import create_tables
-from backend.database_decisions import HumanDecision  # registers table with metadata
-from backend.routers import audit, chat, documents, projects, decisions
+from config import settings
+from database import create_tables
+from database_decisions import HumanDecision  # registers table with metadata
+from routers import audit, chat, documents, projects, decisions
  
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ async def health_check():
 def start():
     import uvicorn
     uvicorn.run(
-        "backend.main:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=settings.APP_ENV == "development",

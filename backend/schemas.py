@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.database import (
+from database import (
     Criticality,
     DocumentType,
     MatchStatus,

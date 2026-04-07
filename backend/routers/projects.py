@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import Document, Project, Requirement, get_db
-from backend.schemas import MessageResponse, ProjectCreate, ProjectResponse
+from database import Document, Project, Requirement, get_db
+from schemas import MessageResponse, ProjectCreate, ProjectResponse
 
 router = APIRouter()
 

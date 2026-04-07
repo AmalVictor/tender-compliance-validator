@@ -7,8 +7,8 @@ from typing import Annotated, Any, AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from backend.config import settings
-from backend.schemas import ChatMessage
+from config import settings
+from schemas import ChatMessage
 from services.proposal_indexer import ProposalIndexer
 from utils.llm_client import acall_smart_messages, acall_smart_messages_stream
 

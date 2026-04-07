@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import (
+from database import (
     AdminCheck,
     Document,
     DocumentType,
@@ -27,7 +27,7 @@ from backend.database import (
     RiskFinding,
     get_db,
 )
-from backend.schemas import AuditResultsResponse, MessageResponse, VendorComplianceScore
+from schemas import AuditResultsResponse, MessageResponse, VendorComplianceScore
 from services.audit_orchestrator import AuditOrchestrator
 from services.scorer import ComplianceScorer
 
@@ -540,7 +540,7 @@ async def export_audit_report(
  
     # Load human decisions for the decision trail section
     try:
-        from backend.database_decisions import HumanDecision
+        from database_decisions import HumanDecision
         from sqlalchemy import select as sa_select
         decision_result = await db.execute(
             sa_select(HumanDecision)

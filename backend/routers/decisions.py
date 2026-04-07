@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import Match, get_db
-from backend.database_decisions import DecisionType, HumanDecision
+from database import Match, get_db
+from database_decisions import DecisionType, HumanDecision
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -146,7 +146,7 @@ async def get_decisions_for_project(
     The export endpoint uses this to populate the Decision Trail section.
     """
     # Join through matches → requirements → project
-    from backend.database import Requirement
+    from database import Requirement
     req_subquery = (
         select(Match.id)
         .join(Requirement, Match.requirement_id == Requirement.id)
