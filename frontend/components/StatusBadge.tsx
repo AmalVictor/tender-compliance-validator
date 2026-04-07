@@ -2,7 +2,7 @@
 // Reusable compliance status badge — maps FULL/PARTIAL/NONE/AMBIGUOUS
 // to the exact chip/badge classes from the mockup.
 
-import type { ComplianceStatus, RiskSeverity } from '../types';
+import type { ComplianceStatus, RiskSeverity } from '@/types';
 
 type BadgeVariant = ComplianceStatus | RiskSeverity | 'Mandatory' | 'Recommended' | string;
 

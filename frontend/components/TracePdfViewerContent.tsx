@@ -27,7 +27,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { TracePdfViewerProps } from './TracePdfViewer';
+import type { TracePdfViewerProps } from '@/TracePdfViewer';
 
 // ── Worker setup ──────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 'use client';
 
 // components/Sidebar.tsx
-import styles from './Sidebar.module.css';
+import styles from '@/Sidebar.module.css';
 
 export type TabId = 'workspace' | 'reqs' | 'matrix' | 'heatmap' | 'deepdive';
 

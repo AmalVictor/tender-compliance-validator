@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { MatrixRow, RequirementCategory } from '../types';
-import { StatusBadge, ConfidenceBar } from './StatusBadge';
+import type { MatrixRow, RequirementCategory } from '@/types';
+import { StatusBadge, ConfidenceBar } from '@/StatusBadge';
 
 interface ComplianceMatrixProps {
     matrix: MatrixRow[];

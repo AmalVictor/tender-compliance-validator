@@ -7,12 +7,12 @@ import React, {
   useCallback,
   useLayoutEffect,
 } from 'react';
-import type { ChatMessage } from '../types';
+import type { ChatMessage } from '@/types';
 import {
   streamChatMessage,
   sendChatMessage,
   type RichCitation,
-} from '../lib/chat-stream';
+} from '@/lib/chat-stream';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

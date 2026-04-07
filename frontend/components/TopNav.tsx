@@ -2,9 +2,9 @@
 
 // components/TopNav.tsx
 import React from 'react';
-import type { TabId } from './Sidebar';
-import type { AuditSummary } from '../types';
-import styles from './TopNav.module.css';
+import type { TabId } from '@/Sidebar';
+import type { AuditSummary } from '@/types';
+import styles from '@/TopNav.module.css';
 
 interface TopNavProps {
     projectName: string;

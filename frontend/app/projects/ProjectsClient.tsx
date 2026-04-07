@@ -3,10 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProjects, createProject, deleteProject, ApiError } from '../../lib/api';
-import { useToast } from '../../context/ToastContext';
-import type { Project } from '../../types';
-import styles from './projects.module.css';
+import { getProjects, createProject, deleteProject, ApiError } from '@/lib/api';
+import { useToast } from '@/context/ToastContext';
+import type { Project } from '@/types';
+import styles from '@/projects.module.css';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, string> = {
